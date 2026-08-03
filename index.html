@@ -6,19 +6,19 @@
 <title>Mechatrade CRM</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Serif:wght@500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
 :root{
-  --ink:#0E2438; --ink-2:#17324b; --ink-3:#24435f;
-  --paper:#F6F7F3; --card:#FFFFFF; --line:#E1E4DD; --line-2:#EDEFE9;
-  --text:#16211C; --muted:#65706A; --faint:#8C968F;
-  --teal:#1C6B58; --teal-weak:#E4EFEA;
-  --gold:#B5822E; --gold-weak:#FAF0DC;
-  --rust:#A23B26; --rust-weak:#F8E7E2;
-  --indigo:#3A4A9E; --indigo-weak:#E7E9F6;
+  --ink:#08182B; --ink-2:#0F2942; --ink-3:#1A3D5C;
+  --paper:#F1F4F8; --card:#FFFFFF; --line:#D9E1EA; --line-2:#EBF0F5;
+  --text:#0B1B2B; --muted:#56697C; --faint:#8496A7;
+  --accent:#E8621A; --accent-weak:#FDEBE0;
+  --warn:#C97A12; --warn-weak:#FCF1DE;
+  --alert:#BE3418; --alert-weak:#FBE5E0;
+  --info:#14456F; --info-weak:#E3EBF3;
   --r:4px;
   --sans:'IBM Plex Sans',system-ui,-apple-system,sans-serif;
-  --serif:'IBM Plex Serif',Georgia,serif;
+  --display:'IBM Plex Sans Condensed','IBM Plex Sans',system-ui,sans-serif;
   --mono:'IBM Plex Mono',ui-monospace,monospace;
 }
 *{box-sizing:border-box}
@@ -28,7 +28,7 @@ body{
   font-size:14px; line-height:1.5; -webkit-font-smoothing:antialiased;
 }
 button,input,select,textarea{font:inherit;color:inherit}
-a{color:var(--teal)}
+a{color:var(--accent)}
 .hidden{display:none !important}
 
 /* ---------- shell ---------- */
@@ -38,9 +38,11 @@ a{color:var(--teal)}
   display:flex;flex-direction:column;position:sticky;top:0;height:100vh;
 }
 .brand{padding:20px 20px 16px;border-bottom:1px solid rgba(255,255,255,.08)}
+.brand{display:flex;align-items:center;gap:11px}
+.brand-mark{width:34px;height:34px;flex:none;object-fit:contain;border-radius:3px;display:block}
 .brand h1{
-  font-family:var(--serif);font-size:20px;font-weight:600;margin:0;color:#fff;
-  letter-spacing:-.01em;
+  font-family:var(--display);font-size:21px;font-weight:700;margin:0;color:#fff;
+  letter-spacing:.005em;text-transform:uppercase;line-height:1.05;
 }
 .brand .tag{
   font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;
@@ -57,7 +59,7 @@ a{color:var(--teal)}
   color:#C8D4DF;cursor:pointer;font-size:13.5px;
 }
 .nav button:hover{background:rgba(255,255,255,.06);color:#fff}
-.nav button.on{background:var(--ink-3);color:#fff;font-weight:500}
+.nav button.on{background:var(--ink-3);color:#fff;font-weight:500;box-shadow:inset 3px 0 0 var(--accent)}
 .nav button .ico{width:16px;text-align:center;opacity:.85;font-size:13px}
 .nav button .count{
   margin-left:auto;font-family:var(--mono);font-size:11px;color:#8FA6B8;
@@ -81,7 +83,8 @@ a{color:var(--teal)}
   height:58px;flex:none;background:var(--card);border-bottom:1px solid var(--line);
   display:flex;align-items:center;gap:14px;padding:0 22px;position:sticky;top:0;z-index:20;
 }
-.top h2{font-family:var(--serif);font-size:19px;font-weight:600;margin:0;letter-spacing:-.01em}
+.top h2{font-family:var(--display);font-size:21px;font-weight:600;margin:0;letter-spacing:.005em}
+.top{border-top:2px solid var(--accent)}
 .top .sub{font-size:12px;color:var(--muted);margin-left:2px}
 .top .spacer{flex:1}
 .search{position:relative}
@@ -90,7 +93,7 @@ a{color:var(--teal)}
   border-radius:var(--r);background:var(--paper);
 }
 .search .mag{position:absolute;left:9px;top:7px;color:var(--faint);font-size:12px}
-.search input:focus{outline:2px solid var(--teal);outline-offset:-1px;background:#fff}
+.search input:focus{outline:2px solid var(--accent);outline-offset:-1px;background:#fff}
 .view{padding:22px;flex:1;animation:rise .18s ease-out}
 @keyframes rise{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
 @media (prefers-reduced-motion:reduce){*{animation:none !important;transition:none !important}}
@@ -100,20 +103,20 @@ a{color:var(--teal)}
   border:1px solid var(--line);background:var(--card);padding:7px 13px;border-radius:var(--r);
   cursor:pointer;font-size:13px;font-weight:500;
 }
-.btn:hover{border-color:#C9CFC6;background:#FCFDFB}
-.btn.pri{background:var(--teal);border-color:var(--teal);color:#fff}
-.btn.pri:hover{background:#175C4A}
-.btn.dgr{color:var(--rust);border-color:#E7CFC8}
-.btn.dgr:hover{background:var(--rust-weak)}
+.btn:hover{border-color:#BCC9D6;background:#F8FAFC}
+.btn.pri{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.pri:hover{background:#CE5314;border-color:#CE5314}
+.btn.dgr{color:var(--alert);border-color:#EAC9C1}
+.btn.dgr:hover{background:var(--alert-weak)}
 .btn.sm{padding:4px 9px;font-size:12px}
 .btn:focus-visible,.nav button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{
-  outline:2px solid var(--teal);outline-offset:1px;
+  outline:2px solid var(--accent);outline-offset:1px;
 }
 .card{background:var(--card);border:1px solid var(--line);border-radius:var(--r)}
 .card-h{
   padding:13px 16px;border-bottom:1px solid var(--line-2);display:flex;align-items:center;gap:10px;
 }
-.card-h h3{font-family:var(--serif);font-size:15px;font-weight:600;margin:0}
+.card-h h3{font-family:var(--display);font-size:16.5px;font-weight:600;margin:0;letter-spacing:.005em}
 .card-h .spacer{flex:1}
 .eyebrow{
   font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--faint);
@@ -123,13 +126,13 @@ a{color:var(--teal)}
   display:inline-flex;align-items:center;gap:5px;padding:2px 8px;border-radius:20px;
   font-size:11.5px;font-weight:500;background:var(--line-2);color:var(--muted);white-space:nowrap;
 }
-.pill.teal{background:var(--teal-weak);color:var(--teal)}
-.pill.gold{background:var(--gold-weak);color:var(--gold)}
-.pill.rust{background:var(--rust-weak);color:var(--rust)}
-.pill.indigo{background:var(--indigo-weak);color:var(--indigo)}
+.pill.accent{background:var(--accent-weak);color:var(--accent)}
+.pill.warn{background:var(--warn-weak);color:var(--warn)}
+.pill.alert{background:var(--alert-weak);color:var(--alert)}
+.pill.info{background:var(--info-weak);color:var(--info)}
 .mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
 .empty{padding:44px 20px;text-align:center;color:var(--muted)}
-.empty strong{display:block;font-family:var(--serif);font-size:16px;color:var(--text);margin-bottom:4px}
+.empty strong{display:block;font-family:var(--display);font-size:17.5px;font-weight:600;color:var(--text);margin-bottom:4px}
 
 /* ---------- table ---------- */
 .toolbar{display:flex;align-items:center;gap:9px;margin-bottom:14px;flex-wrap:wrap}
@@ -145,10 +148,10 @@ thead th{
 thead th:hover{color:var(--muted)}
 tbody td{padding:10px 14px;border-bottom:1px solid var(--line-2);vertical-align:middle}
 tbody tr:last-child td{border-bottom:0}
-tbody tr:hover{background:#FBFCF9}
+tbody tr:hover{background:#F7FAFC}
 td.num{font-family:var(--mono);font-variant-numeric:tabular-nums;text-align:right}
 td .lnk{color:var(--text);font-weight:500;cursor:pointer;text-decoration:none;border-bottom:1px solid var(--line)}
-td .lnk:hover{border-color:var(--teal);color:var(--teal)}
+td .lnk:hover{border-color:var(--accent);color:var(--accent)}
 .row-act{text-align:right;white-space:nowrap}
 .tbl-wrap{overflow-x:auto}
 
@@ -156,21 +159,21 @@ td .lnk:hover{border-color:var(--teal);color:var(--teal)}
 .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:16px}
 .kpi{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px}
 .kpi .lbl{font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint)}
-.kpi .val{font-family:var(--serif);font-size:27px;font-weight:600;letter-spacing:-.02em;margin-top:5px;line-height:1.1}
+.kpi .val{font-family:var(--display);font-size:30px;font-weight:700;letter-spacing:-.005em;margin-top:5px;line-height:1.05}
 .kpi .val.mono{font-family:var(--mono);font-size:23px;font-weight:600}
 .kpi .foot{font-size:11.5px;color:var(--muted);margin-top:4px}
-.kpi.accent{border-left:3px solid var(--teal)}
-.kpi.warn{border-left:3px solid var(--gold)}
-.kpi.bad{border-left:3px solid var(--rust)}
+.kpi.accent{border-left:3px solid var(--accent)}
+.kpi.warn{border-left:3px solid var(--warn)}
+.kpi.bad{border-left:3px solid var(--alert)}
 
 /* ---------- bars ---------- */
 .bars{padding:6px 16px 16px}
 .bar-row{display:grid;grid-template-columns:130px 1fr 84px;gap:10px;align-items:center;padding:6px 0}
 .bar-row .nm{font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .bar-track{height:9px;background:var(--line-2);border-radius:2px;overflow:hidden}
-.bar-fill{height:100%;background:var(--teal);border-radius:2px;transition:width .3s ease}
-.bar-fill.gold{background:var(--gold)} .bar-fill.rust{background:var(--rust)}
-.bar-fill.indigo{background:var(--indigo)} .bar-fill.ink{background:var(--ink-3)}
+.bar-fill{height:100%;background:var(--accent);border-radius:2px;transition:width .3s ease}
+.bar-fill.warn{background:var(--warn)} .bar-fill.alert{background:var(--alert)}
+.bar-fill.info{background:var(--info)} .bar-fill.ink{background:var(--ink-3)}
 .bar-row .fig{font-family:var(--mono);font-size:12px;text-align:right;font-variant-numeric:tabular-nums}
 
 /* funnel */
@@ -184,9 +187,9 @@ td .lnk:hover{border-color:var(--teal);color:var(--teal)}
 /* ---------- kanban (signature) ---------- */
 .board{display:flex;gap:12px;overflow-x:auto;padding-bottom:10px;align-items:flex-start}
 .col{
-  width:262px;flex:none;background:#EFF1EC;border:1px solid var(--line);border-radius:var(--r);
+  width:262px;flex:none;background:#E8EEF4;border:1px solid var(--line);border-radius:var(--r);
 }
-.col.over{border-color:var(--teal);background:var(--teal-weak)}
+.col.over{border-color:var(--accent);background:var(--accent-weak)}
 .col-h{padding:10px 12px;border-bottom:1px solid var(--line)}
 .col-h .t{display:flex;align-items:center;gap:6px}
 .col-h .t strong{font-size:13px;font-weight:600}
@@ -195,24 +198,24 @@ td .lnk:hover{border-color:var(--teal);color:var(--teal)}
   border:1px solid var(--line);border-radius:10px;padding:0 6px;margin-left:auto;
 }
 .col-h .amt{font-family:var(--mono);font-size:12px;color:var(--muted);margin-top:5px}
-.col-h .stack{display:flex;height:4px;margin-top:7px;border-radius:2px;overflow:hidden;background:#DCE0D8}
+.col-h .stack{display:flex;height:4px;margin-top:7px;border-radius:2px;overflow:hidden;background:#D3DDE6}
 .col-h .stack i{display:block;height:100%}
 .col-b{padding:9px;display:flex;flex-direction:column;gap:8px;min-height:70px}
 .deal{
-  background:#fff;border:1px solid var(--line);border-left:3px solid var(--teal);
+  background:#fff;border:1px solid var(--line);border-left:3px solid var(--info);
   border-radius:var(--r);padding:9px 11px;cursor:grab;
 }
-.deal:hover{border-color:#C9CFC6;border-left-color:inherit}
-.deal.age1{border-left-color:var(--teal)}
-.deal.age2{border-left-color:var(--gold)}
-.deal.age3{border-left-color:var(--rust)}
+.deal:hover{border-color:#BCC9D6;border-left-color:inherit}
+.deal.age1{border-left-color:var(--info)}
+.deal.age2{border-left-color:var(--accent)}
+.deal.age3{border-left-color:var(--alert)}
 .deal.drag{opacity:.4}
 .deal .ttl{font-weight:600;font-size:13px;line-height:1.3}
 .deal .acct{font-size:11.5px;color:var(--muted);margin-top:2px}
 .deal .ft{display:flex;align-items:center;gap:6px;margin-top:8px}
 .deal .v{font-family:var(--mono);font-size:12.5px;font-weight:500}
 .deal .ag{margin-left:auto;font-family:var(--mono);font-size:10.5px;color:var(--faint)}
-.deal .ag.w{color:var(--gold)} .deal .ag.d{color:var(--rust);font-weight:500}
+.deal .ag.w{color:var(--accent)} .deal .ag.d{color:var(--alert);font-weight:500}
 .legend{display:flex;gap:14px;align-items:center;font-size:11.5px;color:var(--muted);margin-bottom:12px}
 .legend i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:5px;vertical-align:-1px}
 
@@ -227,7 +230,7 @@ td .lnk:hover{border-color:var(--teal);color:var(--teal)}
 }
 .modal.wide{max-width:860px}
 .modal-h{padding:16px 20px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px}
-.modal-h h3{font-family:var(--serif);font-size:17px;font-weight:600;margin:0}
+.modal-h h3{font-family:var(--display);font-size:19px;font-weight:600;margin:0;letter-spacing:.005em}
 .modal-h .x{margin-left:auto;background:none;border:0;font-size:20px;color:var(--faint);cursor:pointer;line-height:1}
 .modal-b{padding:18px 20px;max-height:66vh;overflow-y:auto}
 .modal-f{padding:13px 20px;border-top:1px solid var(--line);display:flex;gap:9px;justify-content:flex-end;align-items:center}
@@ -236,14 +239,14 @@ td .lnk:hover{border-color:var(--teal);color:var(--teal)}
 .field{display:flex;flex-direction:column;gap:4px}
 .field.full{grid-column:1/-1}
 .field label{font-size:12px;font-weight:500;color:var(--muted)}
-.field label .req{color:var(--rust)}
+.field label .req{color:var(--alert)}
 .field input,.field select,.field textarea{
   padding:8px 10px;border:1px solid var(--line);border-radius:var(--r);background:var(--card);width:100%;
 }
 .field textarea{min-height:74px;resize:vertical}
 .field .hint{font-size:11px;color:var(--faint)}
-.err{background:var(--rust-weak);color:var(--rust);padding:9px 12px;border-radius:var(--r);font-size:12.5px;margin-bottom:12px}
-.ok{background:var(--teal-weak);color:var(--teal);padding:9px 12px;border-radius:var(--r);font-size:12.5px;margin-bottom:12px}
+.err{background:var(--alert-weak);color:var(--alert);padding:9px 12px;border-radius:var(--r);font-size:12.5px;margin-bottom:12px}
+.ok{background:var(--accent-weak);color:var(--accent);padding:9px 12px;border-radius:var(--r);font-size:12.5px;margin-bottom:12px}
 
 /* record detail */
 .det{display:grid;grid-template-columns:1fr 1fr;gap:0 22px}
@@ -257,13 +260,15 @@ td .lnk:hover{border-color:var(--teal);color:var(--teal)}
 .gate-art{
   background:var(--ink);color:#fff;padding:52px 46px;display:flex;flex-direction:column;justify-content:center;
 }
-.gate-art h1{font-family:var(--serif);font-size:40px;font-weight:600;margin:0 0 12px;letter-spacing:-.02em}
+.gate-art .gate-logo{display:flex;align-items:center;gap:14px;margin-bottom:14px}
+.gate-art .gate-logo img{width:56px;height:56px;object-fit:contain;display:block}
+.gate-art h1{font-family:var(--display);font-size:44px;font-weight:700;margin:0;letter-spacing:.01em;text-transform:uppercase;line-height:1}
 .gate-art p{color:#9FB4C4;max-width:340px;line-height:1.6;margin:0 0 26px}
 .gate-art .ticks{display:flex;flex-direction:column;gap:9px;font-size:13px;color:#C8D4DF}
-.gate-art .ticks div::before{content:'—';color:var(--gold);margin-right:9px;font-family:var(--mono)}
+.gate-art .ticks div::before{content:'▸';color:var(--accent);margin-right:9px;font-family:var(--mono)}
 .gate-form{display:grid;place-items:center;padding:40px 20px;background:var(--paper)}
 .gate-form .box{width:100%;max-width:330px}
-.gate-form h2{font-family:var(--serif);font-size:22px;margin:0 0 4px;font-weight:600}
+.gate-form h2{font-family:var(--display);font-size:25px;margin:0 0 4px;font-weight:600;letter-spacing:.005em}
 .gate-form .lead{color:var(--muted);margin:0 0 22px;font-size:13px}
 .gate-form .field{margin-bottom:13px}
 .gate-form .btn{width:100%;padding:9px}
@@ -289,7 +294,10 @@ td .lnk:hover{border-color:var(--teal);color:var(--teal)}
 <!-- ============ LOGIN ============ -->
 <div id="gate" class="gate hidden">
   <div class="gate-art">
-    <h1>Mechatrade</h1>
+    <div class="gate-logo">
+      <img src="logo.png" alt="" onerror="this.remove()">
+      <h1>Mechatrade</h1>
+    </div>
     <p>The pipeline for Sales, Business Development, and Marketing — one record of every lead, deal, and follow-up.</p>
     <div class="ticks">
       <div>Leads captured by Marketing, worked by Sales</div>
@@ -313,7 +321,7 @@ td .lnk:hover{border-color:var(--teal);color:var(--teal)}
 <!-- ============ NO PROFILE ============ -->
 <div id="noprofile" class="gate hidden">
   <div class="gate-art">
-    <h1>Almost there</h1>
+    <div class="gate-logo"><img src="logo.png" alt="" onerror="this.remove()"><h1>Almost there</h1></div>
     <p>Your sign-in works, but no one has assigned you a role yet.</p>
   </div>
   <div class="gate-form"><div class="box">
@@ -327,8 +335,11 @@ td .lnk:hover{border-color:var(--teal);color:var(--teal)}
 <div id="app" class="hidden">
   <aside class="rail" id="rail">
     <div class="brand">
-      <h1>Mechatrade</h1>
-      <div class="tag" id="brand-dept">CRM</div>
+      <img class="brand-mark" src="logo.png" alt="" onerror="this.remove()">
+      <div>
+        <h1>Mechatrade</h1>
+        <div class="tag" id="brand-dept">CRM</div>
+      </div>
     </div>
     <nav class="nav" id="nav"></nav>
     <div class="rail-foot">
@@ -412,7 +423,7 @@ const ROLES = {
   marketing_officer: { label:"Marketing Officer",             dept:"Marketing",             tier:"staff"   }
 };
 const DEPTS = ["Sales","Business Development","Marketing","Admin"];
-const DEPT_CLASS = { "Sales":"teal", "Business Development":"indigo", "Marketing":"gold", "Admin":"" };
+const DEPT_CLASS = { "Sales":"accent", "Business Development":"info", "Marketing":"warn", "Admin":"" };
 
 /* Stage list drives the pipeline board. Edit freely — order matters. */
 const STAGES = [
@@ -584,7 +595,7 @@ function toast(msg,bad){
   const t=document.createElement("div");
   t.textContent=msg;
   t.style.cssText=`position:fixed;bottom:22px;left:50%;transform:translateX(-50%);z-index:99;
-    background:${bad?"#A23B26":"#0E2438"};color:#fff;padding:10px 18px;border-radius:4px;font-size:13px;
+    background:${bad?"#BE3418":"#08182B"};color:#fff;padding:10px 18px;border-radius:4px;font-size:13px;
     box-shadow:0 6px 22px rgba(14,36,56,.3)`;
   document.body.appendChild(t);
   setTimeout(()=>t.remove(), 2600);
@@ -818,11 +829,11 @@ function cell(col,f,d){
 function pillFor(key,v){
   if(!v) return "—";
   const cls = ({
-    "Hot":"rust","Warm":"gold","Cold":"",
-    "New":"indigo","Contacted":"indigo","Qualified":"teal","Converted":"teal","Unqualified":"",
-    "Won":"teal","Lost":"rust","Proposal Sent":"gold","Negotiation":"gold",
-    "Open":"gold","Done":"teal","Active":"teal","Planned":"indigo","Completed":"","Paused":"gold",
-    "Client":"teal","Prospect":"indigo","Partner":"gold"
+    "Hot":"alert","Warm":"warn","Cold":"",
+    "New":"info","Contacted":"info","Qualified":"accent","Converted":"accent","Unqualified":"",
+    "Won":"accent","Lost":"alert","Proposal Sent":"warn","Negotiation":"warn",
+    "Open":"warn","Done":"info","Active":"accent","Planned":"info","Completed":"","Paused":"warn",
+    "Client":"accent","Prospect":"info","Partner":"warn"
   })[v] ?? "";
   return `<span class="pill ${cls}">${esc(v)}</span>`;
 }
@@ -890,7 +901,7 @@ function viewDashboard(){
       <span class="mono" style="font-size:12px;color:var(--muted)">${money(wonVal)} of ${money(target)}</span></div>
     <div class="bars"><div class="bar-row">
       <div class="nm">${new Date().toLocaleDateString(undefined,{month:"long"})}</div>
-      <div class="bar-track"><div class="bar-fill ${targetPct>=100?"":targetPct>=60?"gold":"rust"}" style="width:${targetPct}%"></div></div>
+      <div class="bar-track"><div class="bar-fill ${targetPct>=100?"":targetPct>=60?"warn":"alert"}" style="width:${targetPct}%"></div></div>
       <div class="fig">${targetPct}%</div>
     </div></div>
   </div>`:""}
@@ -907,7 +918,7 @@ function viewDashboard(){
             <td style="width:26px"><input type="checkbox" data-done="${a.id}" title="Mark done"></td>
             <td><span class="lnk" data-open="activities:${a.id}">${esc(a.subject)}</span>
                 <div style="font-size:11.5px;color:var(--muted)">${esc(a.type)} · ${esc(refLabel("dynamic",a.relatedId,a))}</div></td>
-            <td class="num"><span class="pill ${late?"rust":"gold"}">${late?`${Math.abs(n)}d late`:n===0?"Today":`in ${n}d`}</span></td>
+            <td class="num"><span class="pill ${late?"alert":"warn"}">${late?`${Math.abs(n)}d late`:n===0?"Today":`in ${n}d`}</span></td>
           </tr>`;
         }).join("")}
       </tbody></table></div>` : `<div class="empty"><strong>Nothing due</strong>Log a call or set a follow-up to keep deals moving.</div>`}
@@ -921,7 +932,7 @@ function viewDashboard(){
           <td><span class="lnk" data-open="deals:${d.id}">${esc(d.title)}</span>
               <div style="font-size:11.5px;color:var(--muted)">${esc(recordTitle("accounts",d.accountId))} · ${esc(d.stage)}</div></td>
           <td class="num">${money(d.value)}</td>
-          <td class="num"><span class="pill rust">${daysSince(d.stageChangedAt||d.createdAt)}d</span></td>
+          <td class="num"><span class="pill alert">${daysSince(d.stageChangedAt||d.createdAt)}d</span></td>
         </tr>`).join("")}
       </tbody></table></div>` : `<div class="empty"><strong>Pipeline is moving</strong>No open deal has been sitting still.</div>`}
     </div>
@@ -1067,9 +1078,9 @@ function viewPipeline(){
   </div>
   <div class="legend">
     <span>Time in stage:</span>
-    <span><i style="background:var(--teal)"></i>under ${warm}d</span>
-    <span><i style="background:var(--gold)"></i>${warm}–${cold}d</span>
-    <span><i style="background:var(--rust)"></i>over ${cold}d — chase it</span>
+    <span><i style="background:var(--info)"></i>under ${warm}d</span>
+    <span><i style="background:var(--accent)"></i>${warm}–${cold}d</span>
+    <span><i style="background:var(--alert)"></i>over ${cold}d — chase it</span>
     <span style="margin-left:auto">Drag a card to move it</span>
   </div>
   <div class="board">
@@ -1084,9 +1095,9 @@ function viewPipeline(){
           <div class="t"><strong>${esc(st.key)}</strong><span class="n">${inStage.length}</span></div>
           <div class="amt">${money(total)}${st.open?` · ${st.prob}%`:""}</div>
           <div class="stack">
-            <i style="background:var(--teal);width:${buckets[0]/tot*100}%"></i>
-            <i style="background:var(--gold);width:${buckets[1]/tot*100}%"></i>
-            <i style="background:var(--rust);width:${buckets[2]/tot*100}%"></i>
+            <i style="background:var(--info);width:${buckets[0]/tot*100}%"></i>
+            <i style="background:var(--accent);width:${buckets[1]/tot*100}%"></i>
+            <i style="background:var(--alert);width:${buckets[2]/tot*100}%"></i>
           </div>
         </div>
         <div class="col-b">
@@ -1240,7 +1251,7 @@ function viewReports(){
       ${lrList.length?`<div class="bars">
         ${lrList.map(([k,n])=>`<div class="bar-row">
           <div class="nm">${esc(k)}</div>
-          <div class="bar-track"><div class="bar-fill rust" style="width:${n/lrList[0][1]*100}%"></div></div>
+          <div class="bar-track"><div class="bar-fill alert" style="width:${n/lrList[0][1]*100}%"></div></div>
           <div class="fig">${n}</div>
         </div>`).join("")}
       </div>`:`<div class="empty">No closed-lost deals. Long may it last.</div>`}
@@ -1268,7 +1279,7 @@ function viewReports(){
         <td class="num">${x.leads}${x.c.targetLeads?`<span style="color:var(--faint)">/${x.c.targetLeads}</span>`:""}</td>
         <td class="num">${x.deals}</td><td class="num">${x.won}</td><td class="num">${money(x.rev)}</td>
         <td class="num">${x.cpl!==null?money(x.cpl):"—"}</td>
-        <td class="num">${x.roi!==null?`<span class="pill ${x.roi>=0?"teal":"rust"}">${x.roi}%</span>`:"—"}</td>
+        <td class="num">${x.roi!==null?`<span class="pill ${x.roi>=0?"accent":"alert"}">${x.roi}%</span>`:"—"}</td>
       </tr>`).join(""):`<tr><td colspan="8" class="empty">No campaigns yet.</td></tr>`}</tbody>
     </table></div>
   </div>
@@ -1306,7 +1317,7 @@ function viewTeam(){
       <td><span class="pill ${DEPT_CLASS[u.department]||""}">${esc(u.department||"—")}</span></td>
       <td style="font-size:12px;color:var(--muted)">${ ({admin:"Everything",manager:"Whole department",staff:"Own records"})[ROLES[u.role]?.tier] || "—" }</td>
       <td class="num">${u.monthlyTarget?money(u.monthlyTarget):"—"}</td>
-      <td>${u.active===false?`<span class="pill rust">Inactive</span>`:`<span class="pill teal">Active</span>`}</td>
+      <td>${u.active===false?`<span class="pill alert">Inactive</span>`:`<span class="pill accent">Active</span>`}</td>
       <td class="row-act">
         <button class="btn sm" data-reset="${esc(u.email||"")}">Reset password</button>
         <button class="btn sm" data-user="${u.id}">Edit</button>
@@ -1590,7 +1601,7 @@ function openDetail(col,id){
             <span class="pill">${esc(a.type)}</span>
             <div style="flex:1"><div style="font-size:13px">${esc(a.subject)}</div>
               <div style="font-size:11.5px;color:var(--muted)">${fmtDate(a.dueDate)} · ${esc(userName(a.ownerId))}</div></div>
-            ${a.status==="Done"?`<span class="pill teal">Done</span>`:`<button class="btn sm" data-quickdone="${a.id}">Done</button>`}
+            ${a.status==="Done"?`<span class="pill accent">Done</span>`:`<button class="btn sm" data-quickdone="${a.id}">Done</button>`}
           </div>`).join("")
         : `<p style="color:var(--muted);font-size:13px;margin:8px 0">Nothing logged against this record yet.</p>`}
       </div>
@@ -1768,7 +1779,7 @@ function openUserForm(uid){
 if (firebaseConfig.apiKey === "REPLACE_ME"){
   document.getElementById("boot").innerHTML =
     `<div style="max-width:420px;text-align:center;font-family:var(--sans)">
-      <h2 style="font-family:var(--serif)">Add your Firebase keys</h2>
+      <h2 style="font-family:var(--display)">Add your Firebase keys</h2>
       <p style="color:#65706A">Open <code>index.html</code>, find <code>REPLACE_ME</code>, and paste the config from your Firebase project. Then reload.</p>
     </div>`;
 }
