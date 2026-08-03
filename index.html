@@ -1,0 +1,1779 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mechatrade CRM</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Serif:wght@500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#0E2438; --ink-2:#17324b; --ink-3:#24435f;
+  --paper:#F6F7F3; --card:#FFFFFF; --line:#E1E4DD; --line-2:#EDEFE9;
+  --text:#16211C; --muted:#65706A; --faint:#8C968F;
+  --teal:#1C6B58; --teal-weak:#E4EFEA;
+  --gold:#B5822E; --gold-weak:#FAF0DC;
+  --rust:#A23B26; --rust-weak:#F8E7E2;
+  --indigo:#3A4A9E; --indigo-weak:#E7E9F6;
+  --r:4px;
+  --sans:'IBM Plex Sans',system-ui,-apple-system,sans-serif;
+  --serif:'IBM Plex Serif',Georgia,serif;
+  --mono:'IBM Plex Mono',ui-monospace,monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;height:100%}
+body{
+  font-family:var(--sans); background:var(--paper); color:var(--text);
+  font-size:14px; line-height:1.5; -webkit-font-smoothing:antialiased;
+}
+button,input,select,textarea{font:inherit;color:inherit}
+a{color:var(--teal)}
+.hidden{display:none !important}
+
+/* ---------- shell ---------- */
+#app{display:flex;min-height:100vh}
+.rail{
+  width:236px;flex:none;background:var(--ink);color:#C8D4DF;
+  display:flex;flex-direction:column;position:sticky;top:0;height:100vh;
+}
+.brand{padding:20px 20px 16px;border-bottom:1px solid rgba(255,255,255,.08)}
+.brand h1{
+  font-family:var(--serif);font-size:20px;font-weight:600;margin:0;color:#fff;
+  letter-spacing:-.01em;
+}
+.brand .tag{
+  font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;
+  color:#7A93A9;margin-top:3px;
+}
+.nav{flex:1;overflow-y:auto;padding:10px 10px 20px}
+.nav-group{
+  font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;
+  color:#5E7488;padding:14px 10px 6px;
+}
+.nav button{
+  display:flex;align-items:center;gap:10px;width:100%;text-align:left;
+  background:none;border:0;padding:8px 10px;border-radius:var(--r);
+  color:#C8D4DF;cursor:pointer;font-size:13.5px;
+}
+.nav button:hover{background:rgba(255,255,255,.06);color:#fff}
+.nav button.on{background:var(--ink-3);color:#fff;font-weight:500}
+.nav button .ico{width:16px;text-align:center;opacity:.85;font-size:13px}
+.nav button .count{
+  margin-left:auto;font-family:var(--mono);font-size:11px;color:#8FA6B8;
+}
+.rail-foot{padding:12px;border-top:1px solid rgba(255,255,255,.08)}
+.me{display:flex;align-items:center;gap:9px;padding:6px 4px}
+.me .av{
+  width:30px;height:30px;flex:none;border-radius:50%;background:var(--ink-3);
+  display:grid;place-items:center;font-family:var(--mono);font-size:11px;color:#fff;
+}
+.me .nm{font-size:13px;color:#fff;line-height:1.25;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.me .rl{font-size:10.5px;color:#7A93A9;line-height:1.3}
+.rail-foot .out{
+  width:100%;margin-top:6px;background:none;border:1px solid rgba(255,255,255,.14);
+  color:#A9BCCB;padding:6px;border-radius:var(--r);cursor:pointer;font-size:12px;
+}
+.rail-foot .out:hover{background:rgba(255,255,255,.06);color:#fff}
+
+.main{flex:1;min-width:0;display:flex;flex-direction:column}
+.top{
+  height:58px;flex:none;background:var(--card);border-bottom:1px solid var(--line);
+  display:flex;align-items:center;gap:14px;padding:0 22px;position:sticky;top:0;z-index:20;
+}
+.top h2{font-family:var(--serif);font-size:19px;font-weight:600;margin:0;letter-spacing:-.01em}
+.top .sub{font-size:12px;color:var(--muted);margin-left:2px}
+.top .spacer{flex:1}
+.search{position:relative}
+.search input{
+  width:240px;padding:7px 10px 7px 28px;border:1px solid var(--line);
+  border-radius:var(--r);background:var(--paper);
+}
+.search .mag{position:absolute;left:9px;top:7px;color:var(--faint);font-size:12px}
+.search input:focus{outline:2px solid var(--teal);outline-offset:-1px;background:#fff}
+.view{padding:22px;flex:1;animation:rise .18s ease-out}
+@keyframes rise{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){*{animation:none !important;transition:none !important}}
+
+/* ---------- primitives ---------- */
+.btn{
+  border:1px solid var(--line);background:var(--card);padding:7px 13px;border-radius:var(--r);
+  cursor:pointer;font-size:13px;font-weight:500;
+}
+.btn:hover{border-color:#C9CFC6;background:#FCFDFB}
+.btn.pri{background:var(--teal);border-color:var(--teal);color:#fff}
+.btn.pri:hover{background:#175C4A}
+.btn.dgr{color:var(--rust);border-color:#E7CFC8}
+.btn.dgr:hover{background:var(--rust-weak)}
+.btn.sm{padding:4px 9px;font-size:12px}
+.btn:focus-visible,.nav button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{
+  outline:2px solid var(--teal);outline-offset:1px;
+}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r)}
+.card-h{
+  padding:13px 16px;border-bottom:1px solid var(--line-2);display:flex;align-items:center;gap:10px;
+}
+.card-h h3{font-family:var(--serif);font-size:15px;font-weight:600;margin:0}
+.card-h .spacer{flex:1}
+.eyebrow{
+  font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--faint);
+}
+.grid{display:grid;gap:14px}
+.pill{
+  display:inline-flex;align-items:center;gap:5px;padding:2px 8px;border-radius:20px;
+  font-size:11.5px;font-weight:500;background:var(--line-2);color:var(--muted);white-space:nowrap;
+}
+.pill.teal{background:var(--teal-weak);color:var(--teal)}
+.pill.gold{background:var(--gold-weak);color:var(--gold)}
+.pill.rust{background:var(--rust-weak);color:var(--rust)}
+.pill.indigo{background:var(--indigo-weak);color:var(--indigo)}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.empty{padding:44px 20px;text-align:center;color:var(--muted)}
+.empty strong{display:block;font-family:var(--serif);font-size:16px;color:var(--text);margin-bottom:4px}
+
+/* ---------- table ---------- */
+.toolbar{display:flex;align-items:center;gap:9px;margin-bottom:14px;flex-wrap:wrap}
+.toolbar select,.toolbar input{
+  padding:6px 9px;border:1px solid var(--line);border-radius:var(--r);background:var(--card);
+}
+table{width:100%;border-collapse:collapse}
+thead th{
+  font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--faint);text-align:left;padding:9px 14px;border-bottom:1px solid var(--line);
+  font-weight:500;white-space:nowrap;cursor:pointer;user-select:none;
+}
+thead th:hover{color:var(--muted)}
+tbody td{padding:10px 14px;border-bottom:1px solid var(--line-2);vertical-align:middle}
+tbody tr:last-child td{border-bottom:0}
+tbody tr:hover{background:#FBFCF9}
+td.num{font-family:var(--mono);font-variant-numeric:tabular-nums;text-align:right}
+td .lnk{color:var(--text);font-weight:500;cursor:pointer;text-decoration:none;border-bottom:1px solid var(--line)}
+td .lnk:hover{border-color:var(--teal);color:var(--teal)}
+.row-act{text-align:right;white-space:nowrap}
+.tbl-wrap{overflow-x:auto}
+
+/* ---------- kpi ---------- */
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:16px}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px}
+.kpi .lbl{font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint)}
+.kpi .val{font-family:var(--serif);font-size:27px;font-weight:600;letter-spacing:-.02em;margin-top:5px;line-height:1.1}
+.kpi .val.mono{font-family:var(--mono);font-size:23px;font-weight:600}
+.kpi .foot{font-size:11.5px;color:var(--muted);margin-top:4px}
+.kpi.accent{border-left:3px solid var(--teal)}
+.kpi.warn{border-left:3px solid var(--gold)}
+.kpi.bad{border-left:3px solid var(--rust)}
+
+/* ---------- bars ---------- */
+.bars{padding:6px 16px 16px}
+.bar-row{display:grid;grid-template-columns:130px 1fr 84px;gap:10px;align-items:center;padding:6px 0}
+.bar-row .nm{font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bar-track{height:9px;background:var(--line-2);border-radius:2px;overflow:hidden}
+.bar-fill{height:100%;background:var(--teal);border-radius:2px;transition:width .3s ease}
+.bar-fill.gold{background:var(--gold)} .bar-fill.rust{background:var(--rust)}
+.bar-fill.indigo{background:var(--indigo)} .bar-fill.ink{background:var(--ink-3)}
+.bar-row .fig{font-family:var(--mono);font-size:12px;text-align:right;font-variant-numeric:tabular-nums}
+
+/* funnel */
+.funnel{padding:10px 16px 18px;display:flex;flex-direction:column;gap:5px}
+.fstep{display:grid;grid-template-columns:120px 1fr;gap:10px;align-items:center}
+.fbar{
+  height:32px;background:var(--ink-3);border-radius:2px;display:flex;align-items:center;
+  padding:0 10px;color:#fff;font-family:var(--mono);font-size:12px;min-width:44px;
+}
+
+/* ---------- kanban (signature) ---------- */
+.board{display:flex;gap:12px;overflow-x:auto;padding-bottom:10px;align-items:flex-start}
+.col{
+  width:262px;flex:none;background:#EFF1EC;border:1px solid var(--line);border-radius:var(--r);
+}
+.col.over{border-color:var(--teal);background:var(--teal-weak)}
+.col-h{padding:10px 12px;border-bottom:1px solid var(--line)}
+.col-h .t{display:flex;align-items:center;gap:6px}
+.col-h .t strong{font-size:13px;font-weight:600}
+.col-h .t .n{
+  font-family:var(--mono);font-size:11px;color:var(--muted);background:#fff;
+  border:1px solid var(--line);border-radius:10px;padding:0 6px;margin-left:auto;
+}
+.col-h .amt{font-family:var(--mono);font-size:12px;color:var(--muted);margin-top:5px}
+.col-h .stack{display:flex;height:4px;margin-top:7px;border-radius:2px;overflow:hidden;background:#DCE0D8}
+.col-h .stack i{display:block;height:100%}
+.col-b{padding:9px;display:flex;flex-direction:column;gap:8px;min-height:70px}
+.deal{
+  background:#fff;border:1px solid var(--line);border-left:3px solid var(--teal);
+  border-radius:var(--r);padding:9px 11px;cursor:grab;
+}
+.deal:hover{border-color:#C9CFC6;border-left-color:inherit}
+.deal.age1{border-left-color:var(--teal)}
+.deal.age2{border-left-color:var(--gold)}
+.deal.age3{border-left-color:var(--rust)}
+.deal.drag{opacity:.4}
+.deal .ttl{font-weight:600;font-size:13px;line-height:1.3}
+.deal .acct{font-size:11.5px;color:var(--muted);margin-top:2px}
+.deal .ft{display:flex;align-items:center;gap:6px;margin-top:8px}
+.deal .v{font-family:var(--mono);font-size:12.5px;font-weight:500}
+.deal .ag{margin-left:auto;font-family:var(--mono);font-size:10.5px;color:var(--faint)}
+.deal .ag.w{color:var(--gold)} .deal .ag.d{color:var(--rust);font-weight:500}
+.legend{display:flex;gap:14px;align-items:center;font-size:11.5px;color:var(--muted);margin-bottom:12px}
+.legend i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+
+/* ---------- modal ---------- */
+.scrim{
+  position:fixed;inset:0;background:rgba(14,36,56,.42);display:grid;place-items:center;
+  z-index:60;padding:20px;overflow-y:auto;
+}
+.modal{
+  background:var(--card);border-radius:var(--r);width:100%;max-width:620px;
+  box-shadow:0 18px 50px rgba(14,36,56,.24);margin:auto;
+}
+.modal.wide{max-width:860px}
+.modal-h{padding:16px 20px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px}
+.modal-h h3{font-family:var(--serif);font-size:17px;font-weight:600;margin:0}
+.modal-h .x{margin-left:auto;background:none;border:0;font-size:20px;color:var(--faint);cursor:pointer;line-height:1}
+.modal-b{padding:18px 20px;max-height:66vh;overflow-y:auto}
+.modal-f{padding:13px 20px;border-top:1px solid var(--line);display:flex;gap:9px;justify-content:flex-end;align-items:center}
+.modal-f .spacer{flex:1}
+.fgrid{display:grid;grid-template-columns:1fr 1fr;gap:13px}
+.field{display:flex;flex-direction:column;gap:4px}
+.field.full{grid-column:1/-1}
+.field label{font-size:12px;font-weight:500;color:var(--muted)}
+.field label .req{color:var(--rust)}
+.field input,.field select,.field textarea{
+  padding:8px 10px;border:1px solid var(--line);border-radius:var(--r);background:var(--card);width:100%;
+}
+.field textarea{min-height:74px;resize:vertical}
+.field .hint{font-size:11px;color:var(--faint)}
+.err{background:var(--rust-weak);color:var(--rust);padding:9px 12px;border-radius:var(--r);font-size:12.5px;margin-bottom:12px}
+.ok{background:var(--teal-weak);color:var(--teal);padding:9px 12px;border-radius:var(--r);font-size:12.5px;margin-bottom:12px}
+
+/* record detail */
+.det{display:grid;grid-template-columns:1fr 1fr;gap:0 22px}
+.det .r{padding:8px 0;border-bottom:1px solid var(--line-2)}
+.det .r .k{font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--faint)}
+.det .r .v{margin-top:2px;font-size:13.5px;word-break:break-word}
+.det .r.full{grid-column:1/-1}
+
+/* ---------- login ---------- */
+.gate{min-height:100vh;display:grid;grid-template-columns:1fr 1fr;width:100%}
+.gate-art{
+  background:var(--ink);color:#fff;padding:52px 46px;display:flex;flex-direction:column;justify-content:center;
+}
+.gate-art h1{font-family:var(--serif);font-size:40px;font-weight:600;margin:0 0 12px;letter-spacing:-.02em}
+.gate-art p{color:#9FB4C4;max-width:340px;line-height:1.6;margin:0 0 26px}
+.gate-art .ticks{display:flex;flex-direction:column;gap:9px;font-size:13px;color:#C8D4DF}
+.gate-art .ticks div::before{content:'—';color:var(--gold);margin-right:9px;font-family:var(--mono)}
+.gate-form{display:grid;place-items:center;padding:40px 20px;background:var(--paper)}
+.gate-form .box{width:100%;max-width:330px}
+.gate-form h2{font-family:var(--serif);font-size:22px;margin:0 0 4px;font-weight:600}
+.gate-form .lead{color:var(--muted);margin:0 0 22px;font-size:13px}
+.gate-form .field{margin-bottom:13px}
+.gate-form .btn{width:100%;padding:9px}
+@media(max-width:860px){.gate{grid-template-columns:1fr}.gate-art{display:none}}
+
+/* responsive */
+@media(max-width:900px){
+  .rail{position:fixed;left:0;top:0;z-index:50;transform:translateX(-100%);transition:transform .2s}
+  .rail.open{transform:none}
+  .burger{display:block !important}
+  .fgrid,.det{grid-template-columns:1fr}
+  .search input{width:150px}
+  .view{padding:14px}
+}
+.burger{display:none;background:none;border:1px solid var(--line);border-radius:var(--r);padding:5px 9px;cursor:pointer}
+</style>
+</head>
+<body>
+
+<!-- ============ BOOT ============ -->
+<div id="boot" style="min-height:100vh;display:grid;place-items:center;color:#65706A">Loading…</div>
+
+<!-- ============ LOGIN ============ -->
+<div id="gate" class="gate hidden">
+  <div class="gate-art">
+    <h1>Mechatrade</h1>
+    <p>The pipeline for Sales, Business Development, and Marketing — one record of every lead, deal, and follow-up.</p>
+    <div class="ticks">
+      <div>Leads captured by Marketing, worked by Sales</div>
+      <div>Deals that stall get flagged before they die</div>
+      <div>Everyone sees their own book; managers see the team</div>
+    </div>
+  </div>
+  <div class="gate-form">
+    <div class="box">
+      <h2>Sign in</h2>
+      <p class="lead">Use the work email your administrator set up.</p>
+      <div id="gate-err" class="err hidden"></div>
+      <div class="field"><label for="g-email">Email</label><input id="g-email" type="email" autocomplete="username"></div>
+      <div class="field"><label for="g-pass">Password</label><input id="g-pass" type="password" autocomplete="current-password"></div>
+      <button id="g-go" class="btn pri">Sign in</button>
+      <p style="font-size:12px;color:#8C968F;margin-top:14px">Forgot your password? Ask your administrator to reset it in the Team screen.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ============ NO PROFILE ============ -->
+<div id="noprofile" class="gate hidden">
+  <div class="gate-art">
+    <h1>Almost there</h1>
+    <p>Your sign-in works, but no one has assigned you a role yet.</p>
+  </div>
+  <div class="gate-form"><div class="box">
+    <h2>No role assigned</h2>
+    <p class="lead">Ask an administrator to add you in <strong>Team</strong>, then sign in again.</p>
+    <button class="btn" onclick="window.__signOut()">Sign out</button>
+  </div></div>
+</div>
+
+<!-- ============ APP ============ -->
+<div id="app" class="hidden">
+  <aside class="rail" id="rail">
+    <div class="brand">
+      <h1>Mechatrade</h1>
+      <div class="tag" id="brand-dept">CRM</div>
+    </div>
+    <nav class="nav" id="nav"></nav>
+    <div class="rail-foot">
+      <div class="me">
+        <div class="av" id="me-av">--</div>
+        <div style="min-width:0">
+          <div class="nm" id="me-name">—</div>
+          <div class="rl" id="me-role">—</div>
+        </div>
+      </div>
+      <button class="out" onclick="window.__signOut()">Sign out</button>
+    </div>
+  </aside>
+
+  <div class="main">
+    <header class="top">
+      <button class="burger" onclick="document.getElementById('rail').classList.toggle('open')">☰</button>
+      <div>
+        <h2 id="view-title">Dashboard</h2>
+      </div>
+      <div class="spacer"></div>
+      <div class="search">
+        <span class="mag">⌕</span>
+        <input id="q" type="search" placeholder="Search records…" aria-label="Search records">
+      </div>
+      <button class="btn pri" id="new-btn">New</button>
+    </header>
+    <main class="view" id="view"></main>
+  </div>
+</div>
+
+<div id="modal-root"></div>
+
+<script type="module">
+/* =====================================================================
+   CADENCE CRM
+   Single-file app. Firebase Auth + Firestore. No build step, no CLI.
+   Everything you are likely to change lives in the CONFIG block below.
+   ===================================================================== */
+
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import {
+  getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged,
+  createUserWithEmailAndPassword, sendPasswordResetEmail
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import {
+  getFirestore, collection, doc, getDoc, setDoc, addDoc, updateDoc, deleteDoc,
+  onSnapshot, query, where, serverTimestamp, writeBatch
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+/* ------------------------------------------------------------------ */
+/* 1. FIREBASE CONFIG — paste yours from the Firebase console          */
+/* ------------------------------------------------------------------ */
+const firebaseConfig = {
+  apiKey: "AIzaSyAmGwhGr1S0aCPVmXAjlCm3qXtLFD1c620",
+  authDomain: "mechatrade-crm.firebaseapp.com",
+  projectId: "mechatrade-crm",
+  storageBucket: "mechatrade-crm.firebasestorage.app",
+  messagingSenderId: "908151828916",
+  appId: "1:908151828916:web:e06684ba9dde39f69002e1"
+};
+
+const app  = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db   = getFirestore(app);
+
+/* ------------------------------------------------------------------ */
+/* 2. ROLES                                                            */
+/*    tier 'staff'   = sees only records they own                      */
+/*    tier 'manager' = sees every record in their department           */
+/*    tier 'admin'   = sees everything + manages the team              */
+/*    To demote Sales Officer to staff, change its tier below.         */
+/* ------------------------------------------------------------------ */
+const ROLES = {
+  admin:             { label:"Administrator",                dept:"Admin",                 tier:"admin"   },
+  sales_officer:     { label:"Sales Officer",                 dept:"Sales",                 tier:"manager" },
+  sales_person:      { label:"Sales Person",                  dept:"Sales",                 tier:"staff"   },
+  bd_manager:        { label:"Business Development Manager",  dept:"Business Development",  tier:"manager" },
+  bd_officer:        { label:"Business Development Officer",  dept:"Business Development",  tier:"staff"   },
+  marketing_manager: { label:"Marketing Manager",             dept:"Marketing",             tier:"manager" },
+  marketing_officer: { label:"Marketing Officer",             dept:"Marketing",             tier:"staff"   }
+};
+const DEPTS = ["Sales","Business Development","Marketing","Admin"];
+const DEPT_CLASS = { "Sales":"teal", "Business Development":"indigo", "Marketing":"gold", "Admin":"" };
+
+/* Stage list drives the pipeline board. Edit freely — order matters. */
+const STAGES = [
+  { key:"New",           prob:10,  open:true  },
+  { key:"Contacted",     prob:25,  open:true  },
+  { key:"Qualified",     prob:40,  open:true  },
+  { key:"Proposal Sent", prob:60,  open:true  },
+  { key:"Negotiation",   prob:80,  open:true  },
+  { key:"Won",           prob:100, open:false },
+  { key:"Lost",          prob:0,   open:false }
+];
+const OPEN_STAGES = STAGES.filter(s=>s.open).map(s=>s.key);
+
+/* Dropdowns. Admins can override these in Settings; these are fallbacks. */
+const DEFAULT_SETTINGS = {
+  currency:    "PHP",
+  sources:     ["Website","Referral","Cold Call","Walk-in","Trade Show","Social Media","Email Campaign","Partner","Existing Client"],
+  industries:  ["Construction","Manufacturing","Retail","Logistics","Real Estate","Healthcare","Education","Government","Hospitality","Financial Services","Other"],
+  lostReasons: ["Price too high","Lost to competitor","No budget","No decision","Timing","No response","Not a fit"],
+  channels:    ["Email","Social Media","Events","Print","Paid Ads","Webinar","Referral Program"],
+  staleDays:   [7, 21]
+};
+
+/* ------------------------------------------------------------------ */
+/* 3. RECORD SCHEMAS — add or remove fields here and every list,       */
+/*    form, and detail panel updates automatically.                    */
+/*    type: text | email | tel | number | money | date | select |      */
+/*          textarea | ref | url                                       */
+/* ------------------------------------------------------------------ */
+const SCHEMAS = {
+  leads: {
+    label:"Lead", plural:"Leads", icon:"◔", titleField:"company",
+    fields:[
+      { k:"company",       l:"Company",        type:"text",     req:true,  table:true },
+      { k:"contactName",   l:"Contact person", type:"text",     req:true,  table:true },
+      { k:"jobTitle",      l:"Job title",      type:"text" },
+      { k:"email",         l:"Email",          type:"email",    table:true },
+      { k:"phone",         l:"Phone",          type:"tel",      table:true },
+      { k:"status",        l:"Status",         type:"select",   opts:["New","Contacted","Qualified","Unqualified","Converted"], def:"New", table:true },
+      { k:"rating",        l:"Rating",         type:"select",   opts:["Hot","Warm","Cold"], def:"Warm", table:true },
+      { k:"source",        l:"Source",         type:"select",   optsFrom:"sources" },
+      { k:"campaignId",    l:"Campaign",       type:"ref",      refTo:"campaigns" },
+      { k:"estValue",      l:"Estimated value",type:"money",    table:true },
+      { k:"nextAction",    l:"Next action",    type:"text" },
+      { k:"nextActionDate",l:"Follow up on",   type:"date",     table:true },
+      { k:"ownerId",       l:"Owner",          type:"ref",      refTo:"users", table:true, assignOnly:true },
+      { k:"notes",         l:"Notes",          type:"textarea", full:true }
+    ]
+  },
+  accounts: {
+    label:"Account", plural:"Accounts", icon:"▣", titleField:"name",
+    fields:[
+      { k:"name",     l:"Company name", type:"text",   req:true, table:true },
+      { k:"industry", l:"Industry",     type:"select", optsFrom:"industries", table:true },
+      { k:"type",     l:"Type",         type:"select", opts:["Prospect","Client","Partner","Former client"], def:"Prospect", table:true },
+      { k:"website",  l:"Website",      type:"url" },
+      { k:"phone",    l:"Phone",        type:"tel",    table:true },
+      { k:"city",     l:"City",         type:"text",   table:true },
+      { k:"address",  l:"Address",      type:"text",   full:true },
+      { k:"ownerId",  l:"Owner",        type:"ref",    refTo:"users", table:true, assignOnly:true },
+      { k:"notes",    l:"Notes",        type:"textarea", full:true }
+    ]
+  },
+  contacts: {
+    label:"Contact", plural:"Contacts", icon:"◍", titleField:"fullName",
+    fields:[
+      { k:"firstName", l:"Name",       type:"text", req:true, table:true },
+      { k:"lastName",  l:"Last name",  type:"text", req:true },
+      { k:"accountId", l:"Account",    type:"ref",  refTo:"accounts", table:true },
+      { k:"jobTitle",  l:"Job title",  type:"text", table:true },
+      { k:"email",     l:"Email",      type:"email", table:true },
+      { k:"phone",     l:"Phone",      type:"tel" },
+      { k:"mobile",    l:"Mobile",     type:"tel",  table:true },
+      { k:"ownerId",   l:"Owner",      type:"ref",  refTo:"users", table:true, assignOnly:true },
+      { k:"notes",     l:"Notes",      type:"textarea", full:true }
+    ]
+  },
+  deals: {
+    label:"Deal", plural:"Deals", icon:"◈", titleField:"title",
+    fields:[
+      { k:"title",             l:"Deal name",    type:"text",   req:true, table:true },
+      { k:"accountId",         l:"Account",      type:"ref",    refTo:"accounts", table:true },
+      { k:"contactId",         l:"Contact",      type:"ref",    refTo:"contacts" },
+      { k:"value",             l:"Deal value",   type:"money",  req:true, table:true },
+      { k:"stage",             l:"Stage",        type:"select", opts:STAGES.map(s=>s.key), def:"New", table:true },
+      { k:"expectedCloseDate", l:"Expected close", type:"date", table:true },
+      { k:"source",            l:"Source",       type:"select", optsFrom:"sources" },
+      { k:"campaignId",        l:"Campaign",     type:"ref",    refTo:"campaigns" },
+      { k:"lostReason",        l:"Lost reason",  type:"select", optsFrom:"lostReasons" },
+      { k:"ownerId",           l:"Owner",        type:"ref",    refTo:"users", table:true, assignOnly:true },
+      { k:"notes",             l:"Notes",        type:"textarea", full:true }
+    ]
+  },
+  activities: {
+    label:"Activity", plural:"Activities", icon:"◉", titleField:"subject",
+    fields:[
+      { k:"subject",     l:"Subject",    type:"text",   req:true, table:true },
+      { k:"type",        l:"Type",       type:"select", opts:["Call","Meeting","Email","Task","Site Visit","Demo"], def:"Call", table:true },
+      { k:"relatedType", l:"Related to", type:"select", opts:["Lead","Account","Contact","Deal"], def:"Lead", table:true },
+      { k:"relatedId",   l:"Record",     type:"ref",    refTo:"dynamic", table:true },
+      { k:"dueDate",     l:"Due date",   type:"date",   table:true },
+      { k:"status",      l:"Status",     type:"select", opts:["Open","Done"], def:"Open", table:true },
+      { k:"ownerId",     l:"Owner",      type:"ref",    refTo:"users", table:true, assignOnly:true },
+      { k:"outcome",     l:"Outcome / notes", type:"textarea", full:true }
+    ]
+  },
+  campaigns: {
+    label:"Campaign", plural:"Campaigns", icon:"◎", titleField:"name",
+    fields:[
+      { k:"name",        l:"Campaign name", type:"text",   req:true, table:true },
+      { k:"channel",     l:"Channel",       type:"select", optsFrom:"channels", table:true },
+      { k:"status",      l:"Status",        type:"select", opts:["Planned","Active","Paused","Completed"], def:"Planned", table:true },
+      { k:"startDate",   l:"Start date",    type:"date",   table:true },
+      { k:"endDate",     l:"End date",      type:"date",   table:true },
+      { k:"budget",      l:"Budget",        type:"money",  table:true },
+      { k:"targetLeads", l:"Target leads",  type:"number", table:true },
+      { k:"ownerId",     l:"Owner",         type:"ref",    refTo:"users", table:true, assignOnly:true },
+      { k:"notes",       l:"Notes",         type:"textarea", full:true }
+    ]
+  }
+};
+const COLLECTIONS = Object.keys(SCHEMAS);
+
+/* ------------------------------------------------------------------ */
+/* 4. STATE + HELPERS                                                  */
+/* ------------------------------------------------------------------ */
+const state = {
+  user:null, profile:null, settings:{...DEFAULT_SETTINGS},
+  data:Object.fromEntries(COLLECTIONS.map(c=>[c,new Map()])),
+  users:new Map(), route:"dashboard", search:"", unsubs:[], filters:{}
+};
+const isAdmin   = ()=> state.profile?.tier === "admin";
+const isManager = ()=> ["admin","manager"].includes(state.profile?.tier);
+const myUid     = ()=> state.user?.uid;
+
+const $  = s=>document.querySelector(s);
+const esc = s => String(s??"").replace(/[&<>"']/g, c=>({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
+const rows = c => Array.from(state.data[c].values());
+
+function money(n){
+  const v = Number(n||0);
+  const cur = state.settings.currency || "PHP";
+  const sym = { PHP:"₱", USD:"$", EUR:"€", GBP:"£", SGD:"S$", AUD:"A$", JPY:"¥" }[cur] || (cur+" ");
+  return sym + v.toLocaleString(undefined,{maximumFractionDigits:0});
+}
+function shortMoney(n){
+  const v = Number(n||0), sym = money(0).replace(/0/,"");
+  if (Math.abs(v) >= 1e6) return sym + (v/1e6).toFixed(1).replace(/\.0$/,"") + "M";
+  if (Math.abs(v) >= 1e3) return sym + (v/1e3).toFixed(0) + "K";
+  return sym + v;
+}
+function fmtDate(d){
+  if(!d) return "—";
+  const dt = d?.toDate ? d.toDate() : new Date(d);
+  if (isNaN(dt)) return "—";
+  return dt.toLocaleDateString(undefined,{ day:"2-digit", month:"short", year:"numeric" });
+}
+function toDate(v){ if(!v) return null; const d = v?.toDate ? v.toDate() : new Date(v); return isNaN(d)?null:d; }
+const DAY = 86400000;
+function daysSince(v){ const d=toDate(v); return d ? Math.floor((Date.now()-d.getTime())/DAY) : null; }
+function daysUntil(v){ const d=toDate(v); return d ? Math.ceil((d.getTime()-Date.now())/DAY) : null; }
+function todayISO(){ return new Date().toISOString().slice(0,10); }
+function monthStart(){ const d=new Date(); return new Date(d.getFullYear(), d.getMonth(), 1); }
+function initials(name){ return (name||"?").split(" ").filter(Boolean).slice(0,2).map(w=>w[0]).join("").toUpperCase(); }
+function userName(uid){ return state.users.get(uid)?.displayName || (uid===myUid() ? "You" : "—"); }
+function stageProb(k){ return (STAGES.find(s=>s.key===k)||{}).prob ?? 0; }
+function opt(v,sel){ return `<option value="${esc(v)}"${v===sel?" selected":""}>${esc(v)}</option>`; }
+function toast(msg,bad){
+  const t=document.createElement("div");
+  t.textContent=msg;
+  t.style.cssText=`position:fixed;bottom:22px;left:50%;transform:translateX(-50%);z-index:99;
+    background:${bad?"#A23B26":"#0E2438"};color:#fff;padding:10px 18px;border-radius:4px;font-size:13px;
+    box-shadow:0 6px 22px rgba(14,36,56,.3)`;
+  document.body.appendChild(t);
+  setTimeout(()=>t.remove(), 2600);
+}
+/* ------------------------------------------------------------------ */
+/* 5. AUTH                                                             */
+/* ------------------------------------------------------------------ */
+$("#g-go").onclick = async ()=>{
+  const email = $("#g-email").value.trim(), pass = $("#g-pass").value;
+  const err = $("#gate-err");
+  err.classList.add("hidden");
+  if(!email || !pass){ err.textContent="Enter your email and password."; err.classList.remove("hidden"); return; }
+  $("#g-go").disabled = true; $("#g-go").textContent = "Signing in…";
+  try{
+    await signInWithEmailAndPassword(auth, email, pass);
+  }catch(e){
+    err.textContent = ({
+      "auth/invalid-credential":"That email and password don't match an account.",
+      "auth/user-not-found":"No account uses that email.",
+      "auth/wrong-password":"That password is incorrect.",
+      "auth/too-many-requests":"Too many attempts. Wait a few minutes and try again.",
+      "auth/invalid-email":"That email address isn't valid."
+    })[e.code] || e.message;
+    err.classList.remove("hidden");
+  }
+  $("#g-go").disabled = false; $("#g-go").textContent = "Sign in";
+};
+$("#g-pass").addEventListener("keydown", e=>{ if(e.key==="Enter") $("#g-go").click(); });
+window.__signOut = ()=> signOut(auth);
+
+onAuthStateChanged(auth, async (u)=>{
+  state.unsubs.forEach(f=>f()); state.unsubs = [];
+  $("#boot").classList.add("hidden");
+  if(!u){
+    state.user = null; state.profile = null;
+    $("#app").classList.add("hidden"); $("#noprofile").classList.add("hidden");
+    $("#gate").classList.remove("hidden");
+    return;
+  }
+  state.user = u;
+  let snap;
+  try { snap = await getDoc(doc(db,"users",u.uid)); }
+  catch(e){ console.error(e); }
+  if(!snap || !snap.exists()){
+    $("#gate").classList.add("hidden"); $("#app").classList.add("hidden");
+    $("#noprofile").classList.remove("hidden");
+    return;
+  }
+  const p = snap.data();
+  if (p.active === false){ await signOut(auth); toast("That account has been deactivated.", true); return; }
+  const role = ROLES[p.role] ? p.role : "sales_person";
+  state.profile = { ...p, uid:u.uid, role, tier:ROLES[role].tier, department:p.department || ROLES[role].dept };
+  $("#gate").classList.add("hidden"); $("#noprofile").classList.add("hidden");
+  $("#app").classList.remove("hidden");
+  paintMe();
+  subscribeAll();
+  setRoute(location.hash.slice(1) || "dashboard");
+});
+
+function paintMe(){
+  const p = state.profile;
+  $("#me-name").textContent = p.displayName || state.user.email;
+  $("#me-role").textContent = ROLES[p.role].label;
+  $("#me-av").textContent = initials(p.displayName || state.user.email);
+  $("#brand-dept").textContent = p.department;
+}
+
+/* ------------------------------------------------------------------ */
+/* 6. LIVE DATA                                                        */
+/*    Queries are shaped to match the security rules exactly, so a     */
+/*    staff member's browser never even asks for other people's rows.  */
+/* ------------------------------------------------------------------ */
+function scopeQueries(col){
+  const base = collection(db, col);
+  if (isAdmin()) return [ query(base) ];
+  const qs = [];
+  if (state.profile.tier === "manager")
+    qs.push(query(base, where("department","==", state.profile.department)));
+  else
+    qs.push(query(base, where("ownerId","==", myUid())));
+  qs.push(query(base, where("createdBy","==", myUid())));       // leads you sourced, then handed over
+  if (col === "deals") qs.push(query(base, where("sourcedBy","==", myUid())));
+  return qs;
+}
+
+function subscribeAll(){
+  // team directory — everyone can read it so owner names resolve
+  state.unsubs.push(onSnapshot(collection(db,"users"), s=>{
+    state.users = new Map(s.docs.map(d=>[d.id,{id:d.id,...d.data()}]));
+    render();
+  }, e=>console.warn("users",e)));
+
+  // shared dropdown lists
+  state.unsubs.push(onSnapshot(doc(db,"settings","config"), s=>{
+    state.settings = { ...DEFAULT_SETTINGS, ...(s.exists()? s.data():{}) };
+    render();
+  }, e=>console.warn("settings",e)));
+
+  COLLECTIONS.forEach(col=>{
+    const parts = [];
+    scopeQueries(col).forEach((qy,i)=>{
+      parts[i] = new Map();
+      state.unsubs.push(onSnapshot(qy, s=>{
+        parts[i] = new Map(s.docs.map(d=>[d.id,{id:d.id,...d.data()}]));
+        const merged = new Map();
+        parts.forEach(m=> m && m.forEach((v,k)=>merged.set(k,v)));
+        state.data[col] = merged;
+        renderNav(); render();
+      }, e=>console.warn(col,e)));
+    });
+  });
+}
+
+/* ------------------------------------------------------------------ */
+/* 7. NAVIGATION                                                       */
+/* ------------------------------------------------------------------ */
+const NAV = [
+  { group:"Work", items:[
+    { id:"dashboard",  label:"Dashboard",  icon:"◧" },
+    { id:"leads",      label:"Leads",      icon:"◔", count:()=>rows("leads").filter(l=>!["Converted","Unqualified"].includes(l.status)).length },
+    { id:"pipeline",   label:"Pipeline",   icon:"◈", count:()=>rows("deals").filter(d=>OPEN_STAGES.includes(d.stage)).length },
+    { id:"activities", label:"Activities", icon:"◉", count:()=>rows("activities").filter(a=>{
+      const n = daysUntil(a.dueDate); return a.status!=="Done" && n!==null && n<=0;
+    }).length }
+  ]},
+  { group:"Records", items:[
+    { id:"accounts", label:"Accounts", icon:"▣" },
+    { id:"contacts", label:"Contacts", icon:"◍" }
+  ]},
+  { group:"Marketing", items:[
+    { id:"campaigns", label:"Campaigns", icon:"◎" }
+  ]},
+  { group:"Insight", items:[
+    { id:"reports", label:"Reports", icon:"◫" }
+  ]},
+  { group:"Administration", admin:true, items:[
+    { id:"team",     label:"Team",     icon:"◑" },
+    { id:"settings", label:"Settings", icon:"⚙" }
+  ]}
+];
+
+function renderNav(){
+  const html = NAV.filter(g=>!g.admin || isAdmin()).map(g=>`
+    <div class="nav-group">${esc(g.group)}</div>
+    ${g.items.map(i=>{
+      const n = i.count ? i.count() : 0;
+      return `<button data-go="${i.id}" class="${state.route===i.id?"on":""}">
+        <span class="ico">${i.icon}</span>${esc(i.label)}
+        ${i.count && n ? `<span class="count">${n}</span>`:""}
+      </button>`;
+    }).join("")}
+  `).join("");
+  $("#nav").innerHTML = html;
+  $("#nav").querySelectorAll("[data-go]").forEach(b=> b.onclick = ()=>{
+    setRoute(b.dataset.go);
+    document.getElementById("rail").classList.remove("open");
+  });
+}
+
+function setRoute(r){
+  state.route = r; state.search = ""; $("#q").value = "";
+  location.hash = r;
+  renderNav(); render();
+}
+window.addEventListener("hashchange", ()=>{
+  const r = location.hash.slice(1);
+  if (r && r !== state.route && state.profile) setRoute(r);
+});
+$("#q").addEventListener("input", e=>{ state.search = e.target.value.toLowerCase(); render(); });
+
+const NEW_FOR = { leads:"leads", pipeline:"deals", accounts:"accounts", contacts:"contacts",
+                  activities:"activities", campaigns:"campaigns", dashboard:"activities" };
+$("#new-btn").onclick = ()=>{
+  if (state.route === "team")     return openUserForm();
+  if (state.route === "settings") return setRoute("team");
+  openForm(NEW_FOR[state.route] || "leads");
+};
+
+/* ------------------------------------------------------------------ */
+/* 8. RENDER SWITCH                                                    */
+/* ------------------------------------------------------------------ */
+const TITLES = { dashboard:"Dashboard", leads:"Leads", pipeline:"Pipeline", accounts:"Accounts",
+                 contacts:"Contacts", activities:"Activities", campaigns:"Campaigns",
+                 reports:"Reports", team:"Team", settings:"Settings" };
+function render(){
+  if(!state.profile) return;
+  $("#view-title").textContent = TITLES[state.route] || "Mechatrade";
+  $("#new-btn").classList.toggle("hidden", ["reports","settings"].includes(state.route));
+  $("#new-btn").textContent = state.route==="team" ? "Add person" : "New " + (SCHEMAS[NEW_FOR[state.route]]?.label.toLowerCase() || "record");
+  const v = $("#view");
+  switch(state.route){
+    case "dashboard":  v.innerHTML = viewDashboard(); break;
+    case "pipeline":   v.innerHTML = viewPipeline();  break;
+    case "reports":    v.innerHTML = viewReports();   break;
+    case "team":       v.innerHTML = viewTeam();      break;
+    case "settings":   v.innerHTML = viewSettings();  break;
+    default:           v.innerHTML = viewList(state.route);
+  }
+  wireView();
+}
+/* ------------------------------------------------------------------ */
+/* 9. SHARED RENDER HELPERS                                            */
+/* ------------------------------------------------------------------ */
+function refLabel(refTo, id, doc){
+  if(!id) return "—";
+  if (refTo === "users")   return userName(id);
+  if (refTo === "dynamic"){
+    const t = (doc?.relatedType||"Lead").toLowerCase();
+    const map = { lead:"leads", account:"accounts", contact:"contacts", deal:"deals" };
+    return recordTitle(map[t], id);
+  }
+  return recordTitle(refTo, id);
+}
+function recordTitle(col, id){
+  const r = state.data[col]?.get(id);
+  if(!r) return "—";
+  if (col === "contacts") return `${r.firstName||""} ${r.lastName||""}`.trim();
+  return r[SCHEMAS[col].titleField] || "—";
+}
+function cell(col,f,d){
+  const v = d[f.k];
+  if (f.type === "money")  return `<span class="mono">${v?money(v):"—"}</span>`;
+  if (f.type === "number") return `<span class="mono">${v??"—"}</span>`;
+  if (f.type === "date")   return `<span class="mono" style="font-size:12px">${fmtDate(v)}</span>`;
+  if (f.type === "ref")    return esc(refLabel(f.refTo, v, d));
+  if (f.type === "email" && v) return `<a href="mailto:${esc(v)}">${esc(v)}</a>`;
+  if (f.type === "url"   && v) return `<a href="${esc(v)}" target="_blank" rel="noopener">${esc(v)}</a>`;
+  if (f.type === "select") return pillFor(f.k, v);
+  return esc(v ?? "—");
+}
+function pillFor(key,v){
+  if(!v) return "—";
+  const cls = ({
+    "Hot":"rust","Warm":"gold","Cold":"",
+    "New":"indigo","Contacted":"indigo","Qualified":"teal","Converted":"teal","Unqualified":"",
+    "Won":"teal","Lost":"rust","Proposal Sent":"gold","Negotiation":"gold",
+    "Open":"gold","Done":"teal","Active":"teal","Planned":"indigo","Completed":"","Paused":"gold",
+    "Client":"teal","Prospect":"indigo","Partner":"gold"
+  })[v] ?? "";
+  return `<span class="pill ${cls}">${esc(v)}</span>`;
+}
+function matches(d,col){
+  if(!state.search) return true;
+  return SCHEMAS[col].fields.some(f=>{
+    const v = f.type==="ref" ? refLabel(f.refTo,d[f.k],d) : d[f.k];
+    return String(v??"").toLowerCase().includes(state.search);
+  });
+}
+function ownerOptions(sel){
+  const list = Array.from(state.users.values()).filter(u=>u.active !== false)
+    .sort((a,b)=>(a.displayName||"").localeCompare(b.displayName||""));
+  return list.map(u=>`<option value="${u.id}"${u.id===sel?" selected":""}>${esc(u.displayName||u.email)} — ${esc(ROLES[u.role]?.label||u.role)}</option>`).join("");
+}
+
+/* ------------------------------------------------------------------ */
+/* 10. DASHBOARD                                                       */
+/* ------------------------------------------------------------------ */
+function viewDashboard(){
+  const deals  = rows("deals");
+  const open   = deals.filter(d=>OPEN_STAGES.includes(d.stage));
+  const openVal= open.reduce((s,d)=>s+Number(d.value||0),0);
+  const weighted = open.reduce((s,d)=>s+Number(d.value||0)*stageProb(d.stage)/100,0);
+  const ms = monthStart();
+  const wonMonth = deals.filter(d=>d.stage==="Won" && toDate(d.closedAt||d.updatedAt) >= ms);
+  const wonVal = wonMonth.reduce((s,d)=>s+Number(d.value||0),0);
+  const target = Number(state.profile.monthlyTarget||0);
+  const workable = rows("leads").filter(l=>["New","Contacted"].includes(l.status));
+  const acts = rows("activities").filter(a=>a.status!=="Done");
+  const overdue = acts.filter(a=>daysUntil(a.dueDate)!==null && daysUntil(a.dueDate)<0);
+  const dueSoon = acts.filter(a=>{const n=daysUntil(a.dueDate); return n!==null && n>=0 && n<=7;})
+                      .sort((a,b)=>toDate(a.dueDate)-toDate(b.dueDate));
+  const stale = open.filter(d=>daysSince(d.stageChangedAt||d.createdAt) > state.settings.staleDays[1])
+                    .sort((a,b)=>daysSince(b.stageChangedAt||b.createdAt)-daysSince(a.stageChangedAt||a.createdAt));
+
+  const targetPct = target ? Math.min(100, Math.round(wonVal/target*100)) : null;
+
+  return `
+  <div class="kpis">
+    <div class="kpi accent">
+      <div class="lbl">Open pipeline</div>
+      <div class="val mono">${shortMoney(openVal)}</div>
+      <div class="foot">${open.length} deal${open.length===1?"":"s"} · ${shortMoney(weighted)} weighted</div>
+    </div>
+    <div class="kpi">
+      <div class="lbl">Won this month</div>
+      <div class="val mono">${shortMoney(wonVal)}</div>
+      <div class="foot">${target ? `${targetPct}% of ${shortMoney(target)} target` : `${wonMonth.length} deal${wonMonth.length===1?"":"s"} closed`}</div>
+    </div>
+    <div class="kpi ${workable.length?"warn":""}">
+      <div class="lbl">Leads to work</div>
+      <div class="val">${workable.length}</div>
+      <div class="foot">${rows("leads").filter(l=>l.status==="New").length} never contacted</div>
+    </div>
+    <div class="kpi ${overdue.length?"bad":""}">
+      <div class="lbl">Overdue follow-ups</div>
+      <div class="val">${overdue.length}</div>
+      <div class="foot">${dueSoon.length} more due this week</div>
+    </div>
+  </div>
+
+  ${target ? `<div class="card" style="margin-bottom:14px">
+    <div class="card-h"><h3>Target progress</h3><div class="spacer"></div>
+      <span class="mono" style="font-size:12px;color:var(--muted)">${money(wonVal)} of ${money(target)}</span></div>
+    <div class="bars"><div class="bar-row">
+      <div class="nm">${new Date().toLocaleDateString(undefined,{month:"long"})}</div>
+      <div class="bar-track"><div class="bar-fill ${targetPct>=100?"":targetPct>=60?"gold":"rust"}" style="width:${targetPct}%"></div></div>
+      <div class="fig">${targetPct}%</div>
+    </div></div>
+  </div>`:""}
+
+  <div class="grid" style="grid-template-columns:1fr 1fr">
+    <div class="card">
+      <div class="card-h"><h3>Follow-ups due</h3><div class="spacer"></div>
+        <button class="btn sm" data-go="activities">See all</button></div>
+      ${[...overdue,...dueSoon].length ? `<div class="tbl-wrap"><table><tbody>
+        ${[...overdue,...dueSoon].slice(0,8).map(a=>{
+          const n = daysUntil(a.dueDate);
+          const late = n<0;
+          return `<tr>
+            <td style="width:26px"><input type="checkbox" data-done="${a.id}" title="Mark done"></td>
+            <td><span class="lnk" data-open="activities:${a.id}">${esc(a.subject)}</span>
+                <div style="font-size:11.5px;color:var(--muted)">${esc(a.type)} · ${esc(refLabel("dynamic",a.relatedId,a))}</div></td>
+            <td class="num"><span class="pill ${late?"rust":"gold"}">${late?`${Math.abs(n)}d late`:n===0?"Today":`in ${n}d`}</span></td>
+          </tr>`;
+        }).join("")}
+      </tbody></table></div>` : `<div class="empty"><strong>Nothing due</strong>Log a call or set a follow-up to keep deals moving.</div>`}
+    </div>
+
+    <div class="card">
+      <div class="card-h"><h3>Deals going cold</h3><div class="spacer"></div>
+        <span class="eyebrow">no movement ${state.settings.staleDays[1]}d+</span></div>
+      ${stale.length ? `<div class="tbl-wrap"><table><tbody>
+        ${stale.slice(0,8).map(d=>`<tr>
+          <td><span class="lnk" data-open="deals:${d.id}">${esc(d.title)}</span>
+              <div style="font-size:11.5px;color:var(--muted)">${esc(recordTitle("accounts",d.accountId))} · ${esc(d.stage)}</div></td>
+          <td class="num">${money(d.value)}</td>
+          <td class="num"><span class="pill rust">${daysSince(d.stageChangedAt||d.createdAt)}d</span></td>
+        </tr>`).join("")}
+      </tbody></table></div>` : `<div class="empty"><strong>Pipeline is moving</strong>No open deal has been sitting still.</div>`}
+    </div>
+  </div>
+
+  ${isManager() ? teamSnapshot() : ""}
+  `;
+}
+
+function teamSnapshot(){
+  const deals = rows("deals");
+  const ms = monthStart();
+  const byOwner = new Map();
+  deals.forEach(d=>{
+    const o = byOwner.get(d.ownerId) || { open:0, won:0 };
+    if (OPEN_STAGES.includes(d.stage)) o.open += Number(d.value||0);
+    if (d.stage==="Won" && toDate(d.closedAt||d.updatedAt) >= ms) o.won += Number(d.value||0);
+    byOwner.set(d.ownerId,o);
+  });
+  const list = Array.from(byOwner.entries())
+    .map(([uid,v])=>({ uid, ...v, target:Number(state.users.get(uid)?.monthlyTarget||0) }))
+    .sort((a,b)=>b.won-a.won).slice(0,8);
+  if(!list.length) return "";
+  const max = Math.max(...list.map(l=>Math.max(l.open,l.won)),1);
+  return `
+  <div class="card" style="margin-top:14px">
+    <div class="card-h"><h3>Team this month</h3><div class="spacer"></div>
+      <span class="eyebrow">won · open pipeline</span></div>
+    <div class="bars">
+      ${list.map(l=>`
+      <div class="bar-row">
+        <div class="nm">${esc(userName(l.uid))}</div>
+        <div>
+          <div class="bar-track" style="margin-bottom:3px"><div class="bar-fill" style="width:${l.won/max*100}%"></div></div>
+          <div class="bar-track"><div class="bar-fill ink" style="width:${l.open/max*100}%"></div></div>
+        </div>
+        <div class="fig">${shortMoney(l.won)}${l.target?`<div style="font-size:10.5px;color:var(--faint)">${Math.round(l.won/l.target*100)}% of goal</div>`:""}</div>
+      </div>`).join("")}
+    </div>
+  </div>`;
+}
+
+/* ------------------------------------------------------------------ */
+/* 11. GENERIC LIST VIEW                                               */
+/* ------------------------------------------------------------------ */
+function viewList(col){
+  const S = SCHEMAS[col];
+  if(!S) return `<div class="empty"><strong>Nothing here</strong>That screen doesn't exist.</div>`;
+  const f = state.filters[col] || {};
+  let list = rows(col).filter(d=>matches(d,col));
+  if (f.status) list = list.filter(d=>(d.status||d.stage)===f.status);
+  if (f.owner)  list = list.filter(d=>d.ownerId===f.owner);
+  if (col==="activities" && f.due==="open") list = list.filter(d=>d.status!=="Done");
+
+  const sortK = f.sort || "updatedAt", dir = f.dir===1?1:-1;
+  list.sort((a,b)=>{
+    let A=a[sortK], B=b[sortK];
+    if (sortK==="ownerId"){ A=userName(A); B=userName(B); }
+    if (A?.toDate) A=A.toDate(); if (B?.toDate) B=B.toDate();
+    if (typeof A==="number"||typeof B==="number") return ((A||0)-(B||0))*dir;
+    return String(A??"").localeCompare(String(B??""))*dir;
+  });
+
+  const statusField = S.fields.find(x=>x.k==="status"||x.k==="stage");
+  const cols = S.fields.filter(x=>x.table);
+
+  const filterBar = `
+  <div class="toolbar">
+    ${statusField?`<select data-filter="status">
+      <option value="">All ${esc(statusField.l.toLowerCase())}es</option>
+      ${statusField.opts.map(o=>opt(o,f.status)).join("")}
+    </select>`:""}
+    ${isManager()?`<select data-filter="owner">
+      <option value="">Everyone</option>
+      ${ownerOptions(f.owner)}
+    </select>`:""}
+    ${col==="activities"?`<select data-filter="due">
+      <option value="">All activities</option>
+      <option value="open"${f.due==="open"?" selected":""}>Open only</option>
+    </select>`:""}
+    <div style="flex:1"></div>
+    <span class="eyebrow">${list.length} of ${rows(col).length}</span>
+    ${col==="deals"||col==="leads"?`<span class="mono" style="font-size:12px;color:var(--muted)">${money(list.reduce((s,d)=>s+Number(d.value||d.estValue||0),0))}</span>`:""}
+  </div>`;
+
+  if(!list.length) return filterBar + `<div class="card"><div class="empty">
+    <strong>No ${esc(S.plural.toLowerCase())} yet</strong>
+    ${state.search||f.status||f.owner ? "Nothing matches this filter." : `Add your first ${esc(S.label.toLowerCase())} with the New button.`}
+  </div></div>`;
+
+  return filterBar + `<div class="card"><div class="tbl-wrap"><table>
+    <thead><tr>
+      ${cols.map(c=>`<th data-sort="${c.k}">${esc(c.l)}${sortK===c.k?(dir===1?" ↑":" ↓"):""}</th>`).join("")}
+      <th style="text-align:right">·</th>
+    </tr></thead>
+    <tbody>
+      ${list.map(d=>`<tr>
+        ${cols.map((c,i)=>`<td class="${["money","number"].includes(c.type)?"num":""}">${
+          i===0 ? `<span class="lnk" data-open="${col}:${d.id}">${esc(titleOf(col,d))}</span>` : cell(col,c,d)
+        }</td>`).join("")}
+        <td class="row-act">
+          ${col==="leads" && d.status!=="Converted" ? `<button class="btn sm" data-convert="${d.id}">Convert</button> `:""}
+          ${col==="activities" && d.status!=="Done" ? `<button class="btn sm" data-donebtn="${d.id}">Done</button> `:""}
+          <button class="btn sm" data-edit="${col}:${d.id}">Edit</button>
+        </td>
+      </tr>`).join("")}
+    </tbody>
+  </table></div></div>`;
+}
+function titleOf(col,d){
+  if (col==="contacts") return `${d.firstName||""} ${d.lastName||""}`.trim() || "—";
+  return d[SCHEMAS[col].titleField] || "—";
+}
+/* ------------------------------------------------------------------ */
+/* 12. PIPELINE BOARD — deals age in place, and the left edge of every  */
+/*     card shows how long it has sat in its current stage.            */
+/* ------------------------------------------------------------------ */
+function ageClass(d){
+  const n = daysSince(d.stageChangedAt||d.createdAt) ?? 0;
+  const [warm,cold] = state.settings.staleDays;
+  return n > cold ? 3 : n > warm ? 2 : 1;
+}
+function viewPipeline(){
+  if (state.filters.pipeMode === "list") return `
+    <div class="toolbar"><button class="btn" data-pipe="board">Board</button>
+      <button class="btn pri" data-pipe="list">List</button></div>` + viewList("deals");
+
+  const f = state.filters.deals || {};
+  let deals = rows("deals").filter(d=>matches(d,"deals"));
+  if (f.owner) deals = deals.filter(d=>d.ownerId===f.owner);
+  const [warm,cold] = state.settings.staleDays;
+
+  return `
+  <div class="toolbar">
+    <button class="btn pri" data-pipe="board">Board</button>
+    <button class="btn" data-pipe="list">List</button>
+    ${isManager()?`<select data-filter="owner" data-col="deals">
+      <option value="">Everyone</option>${ownerOptions(f.owner)}</select>`:""}
+    <div style="flex:1"></div>
+    <span class="mono" style="font-size:12px;color:var(--muted)">
+      ${money(deals.filter(d=>OPEN_STAGES.includes(d.stage)).reduce((s,d)=>s+Number(d.value||0),0))} open
+    </span>
+  </div>
+  <div class="legend">
+    <span>Time in stage:</span>
+    <span><i style="background:var(--teal)"></i>under ${warm}d</span>
+    <span><i style="background:var(--gold)"></i>${warm}–${cold}d</span>
+    <span><i style="background:var(--rust)"></i>over ${cold}d — chase it</span>
+    <span style="margin-left:auto">Drag a card to move it</span>
+  </div>
+  <div class="board">
+    ${STAGES.map(st=>{
+      const inStage = deals.filter(d=>d.stage===st.key)
+        .sort((a,b)=>Number(b.value||0)-Number(a.value||0));
+      const total = inStage.reduce((s,d)=>s+Number(d.value||0),0);
+      const buckets = [1,2,3].map(n=>inStage.filter(d=>ageClass(d)===n).length);
+      const tot = Math.max(inStage.length,1);
+      return `<section class="col" data-stage="${esc(st.key)}">
+        <div class="col-h">
+          <div class="t"><strong>${esc(st.key)}</strong><span class="n">${inStage.length}</span></div>
+          <div class="amt">${money(total)}${st.open?` · ${st.prob}%`:""}</div>
+          <div class="stack">
+            <i style="background:var(--teal);width:${buckets[0]/tot*100}%"></i>
+            <i style="background:var(--gold);width:${buckets[1]/tot*100}%"></i>
+            <i style="background:var(--rust);width:${buckets[2]/tot*100}%"></i>
+          </div>
+        </div>
+        <div class="col-b">
+          ${inStage.map(d=>{
+            const age = daysSince(d.stageChangedAt||d.createdAt) ?? 0;
+            const ac = ageClass(d);
+            return `<article class="deal age${ac}" draggable="true" data-deal="${d.id}">
+              <div class="ttl" data-open="deals:${d.id}">${esc(d.title)}</div>
+              <div class="acct">${esc(recordTitle("accounts",d.accountId))}</div>
+              <div class="ft">
+                <span class="v">${money(d.value)}</span>
+                ${isManager()?`<span class="pill">${esc(initials(userName(d.ownerId)))}</span>`:""}
+                <span class="ag ${ac===3?"d":ac===2?"w":""}">${age}d</span>
+              </div>
+            </article>`;
+          }).join("") || `<div style="padding:12px 4px;color:var(--faint);font-size:12px">Drop a deal here</div>`}
+        </div>
+      </section>`;
+    }).join("")}
+  </div>`;
+}
+
+/* ------------------------------------------------------------------ */
+/* 13. REPORTS                                                         */
+/* ------------------------------------------------------------------ */
+function viewReports(){
+  const deals = rows("deals"), leads = rows("leads");
+  const won = deals.filter(d=>d.stage==="Won"), lost = deals.filter(d=>d.stage==="Lost");
+  const closed = won.length + lost.length;
+  const winRate = closed ? Math.round(won.length/closed*100) : 0;
+  const wonVal = won.reduce((s,d)=>s+Number(d.value||0),0);
+  const avgDeal = won.length ? wonVal/won.length : 0;
+  const cycle = won.map(d=>{
+    const a = toDate(d.createdAt), b = toDate(d.closedAt||d.updatedAt);
+    return a&&b ? Math.round((b-a)/DAY) : null;
+  }).filter(n=>n!==null);
+  const avgCycle = cycle.length ? Math.round(cycle.reduce((a,b)=>a+b,0)/cycle.length) : null;
+
+  // funnel
+  const funnel = [
+    { l:"Leads",        n:leads.length },
+    { l:"Contacted",    n:leads.filter(l=>l.status!=="New").length },
+    { l:"Qualified",    n:leads.filter(l=>["Qualified","Converted"].includes(l.status)).length },
+    { l:"Deals opened", n:deals.length },
+    { l:"Proposals",    n:deals.filter(d=>["Proposal Sent","Negotiation","Won"].includes(d.stage)).length },
+    { l:"Won",          n:won.length }
+  ];
+  const fmax = Math.max(...funnel.map(f=>f.n),1);
+
+  // pipeline by stage
+  const byStage = STAGES.filter(s=>s.open).map(s=>({
+    l:s.key, v:deals.filter(d=>d.stage===s.key).reduce((a,d)=>a+Number(d.value||0),0),
+    n:deals.filter(d=>d.stage===s.key).length
+  }));
+  const smax = Math.max(...byStage.map(s=>s.v),1);
+
+  // by owner
+  const owners = new Map();
+  deals.forEach(d=>{
+    const o = owners.get(d.ownerId) || { won:0, open:0, n:0 };
+    if (d.stage==="Won") o.won += Number(d.value||0);
+    if (OPEN_STAGES.includes(d.stage)){ o.open += Number(d.value||0); o.n++; }
+    owners.set(d.ownerId,o);
+  });
+  const ownerList = Array.from(owners.entries()).map(([uid,v])=>({uid,...v})).sort((a,b)=>b.won-a.won);
+  const omax = Math.max(...ownerList.map(o=>o.won),1);
+
+  // source performance
+  const srcs = new Map();
+  leads.forEach(l=>{ const s=srcs.get(l.source||"Unspecified")||{leads:0,won:0,val:0}; s.leads++; srcs.set(l.source||"Unspecified",s); });
+  deals.forEach(d=>{ const k=d.source||"Unspecified"; const s=srcs.get(k)||{leads:0,won:0,val:0};
+    if(d.stage==="Won"){ s.won++; s.val+=Number(d.value||0); } srcs.set(k,s); });
+  const srcList = Array.from(srcs.entries()).map(([k,v])=>({k,...v})).sort((a,b)=>b.val-a.val);
+
+  // campaigns
+  const camps = rows("campaigns").map(c=>{
+    const cl = leads.filter(l=>l.campaignId===c.id);
+    const cd = deals.filter(d=>d.campaignId===c.id);
+    const cw = cd.filter(d=>d.stage==="Won");
+    const rev = cw.reduce((s,d)=>s+Number(d.value||0),0);
+    const budget = Number(c.budget||0);
+    return { c, leads:cl.length, deals:cd.length, won:cw.length, rev, budget,
+             cpl: budget && cl.length ? budget/cl.length : null,
+             roi: budget ? Math.round((rev-budget)/budget*100) : null };
+  }).sort((a,b)=>b.rev-a.rev);
+
+  // lost reasons
+  const lr = new Map();
+  lost.forEach(d=>{ const k=d.lostReason||"Not recorded"; lr.set(k,(lr.get(k)||0)+1); });
+  const lrList = Array.from(lr.entries()).sort((a,b)=>b[1]-a[1]);
+
+  const acts = rows("activities");
+  const actByOwner = new Map();
+  acts.forEach(a=>{ const o=actByOwner.get(a.ownerId)||{done:0,open:0}; a.status==="Done"?o.done++:o.open++; actByOwner.set(a.ownerId,o); });
+
+  return `
+  <div class="kpis">
+    <div class="kpi accent"><div class="lbl">Won revenue</div><div class="val mono">${shortMoney(wonVal)}</div><div class="foot">${won.length} closed won</div></div>
+    <div class="kpi"><div class="lbl">Win rate</div><div class="val">${winRate}<span style="font-size:16px">%</span></div><div class="foot">${won.length} won / ${lost.length} lost</div></div>
+    <div class="kpi"><div class="lbl">Average deal</div><div class="val mono">${shortMoney(avgDeal)}</div><div class="foot">across won deals</div></div>
+    <div class="kpi"><div class="lbl">Sales cycle</div><div class="val">${avgCycle??"—"}<span style="font-size:16px">${avgCycle?" days":""}</span></div><div class="foot">create → won</div></div>
+  </div>
+
+  <div class="grid" style="grid-template-columns:1fr 1fr">
+    <div class="card">
+      <div class="card-h"><h3>Conversion funnel</h3></div>
+      <div class="funnel">
+        ${funnel.map((f,i)=>{
+          const prev = i? funnel[i-1].n : null;
+          const drop = prev && prev>0 ? Math.round(f.n/prev*100) : null;
+          return `<div class="fstep">
+            <div style="font-size:12.5px">${esc(f.l)}${drop!==null?` <span class="mono" style="color:var(--faint);font-size:11px">${drop}%</span>`:""}</div>
+            <div class="fbar" style="width:${Math.max(f.n/fmax*100,6)}%">${f.n}</div>
+          </div>`;
+        }).join("")}
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-h"><h3>Open pipeline by stage</h3></div>
+      <div class="bars">
+        ${byStage.map(s=>`<div class="bar-row">
+          <div class="nm">${esc(s.l)} <span class="mono" style="color:var(--faint);font-size:11px">${s.n}</span></div>
+          <div class="bar-track"><div class="bar-fill" style="width:${s.v/smax*100}%"></div></div>
+          <div class="fig">${shortMoney(s.v)}</div>
+        </div>`).join("")}
+      </div>
+    </div>
+  </div>
+
+  <div class="grid" style="grid-template-columns:1fr 1fr;margin-top:14px">
+    <div class="card">
+      <div class="card-h"><h3>By owner</h3><div class="spacer"></div><span class="eyebrow">won / open</span></div>
+      ${ownerList.length?`<div class="bars">
+        ${ownerList.map(o=>{
+          const t = Number(state.users.get(o.uid)?.monthlyTarget||0);
+          return `<div class="bar-row">
+            <div class="nm">${esc(userName(o.uid))}</div>
+            <div>
+              <div class="bar-track" style="margin-bottom:3px"><div class="bar-fill" style="width:${o.won/omax*100}%"></div></div>
+              <div class="bar-track"><div class="bar-fill ink" style="width:${o.open/omax*100}%"></div></div>
+            </div>
+            <div class="fig">${shortMoney(o.won)}${t?`<div style="font-size:10.5px;color:var(--faint)">${Math.round(o.won/t*100)}%</div>`:""}</div>
+          </div>`;
+        }).join("")}
+      </div>`:`<div class="empty">No deals recorded yet.</div>`}
+    </div>
+
+    <div class="card">
+      <div class="card-h"><h3>Why deals were lost</h3></div>
+      ${lrList.length?`<div class="bars">
+        ${lrList.map(([k,n])=>`<div class="bar-row">
+          <div class="nm">${esc(k)}</div>
+          <div class="bar-track"><div class="bar-fill rust" style="width:${n/lrList[0][1]*100}%"></div></div>
+          <div class="fig">${n}</div>
+        </div>`).join("")}
+      </div>`:`<div class="empty">No closed-lost deals. Long may it last.</div>`}
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:14px">
+    <div class="card-h"><h3>Lead sources</h3><div class="spacer"></div><span class="eyebrow">where revenue actually comes from</span></div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>Source</th><th style="text-align:right">Leads</th><th style="text-align:right">Deals won</th><th style="text-align:right">Revenue</th></tr></thead>
+      <tbody>${srcList.length?srcList.map(s=>`<tr>
+        <td>${esc(s.k)}</td><td class="num">${s.leads}</td><td class="num">${s.won}</td><td class="num">${money(s.val)}</td>
+      </tr>`).join(""):`<tr><td colspan="4" class="empty">Tag leads with a source to fill this in.</td></tr>`}</tbody>
+    </table></div>
+  </div>
+
+  <div class="card" style="margin-top:14px">
+    <div class="card-h"><h3>Campaign performance</h3><div class="spacer"></div><span class="eyebrow">cost per lead · return</span></div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>Campaign</th><th>Channel</th><th style="text-align:right">Leads</th><th style="text-align:right">Deals</th>
+        <th style="text-align:right">Won</th><th style="text-align:right">Revenue</th><th style="text-align:right">Cost/lead</th><th style="text-align:right">ROI</th></tr></thead>
+      <tbody>${camps.length?camps.map(x=>`<tr>
+        <td><span class="lnk" data-open="campaigns:${x.c.id}">${esc(x.c.name)}</span></td>
+        <td>${esc(x.c.channel||"—")}</td>
+        <td class="num">${x.leads}${x.c.targetLeads?`<span style="color:var(--faint)">/${x.c.targetLeads}</span>`:""}</td>
+        <td class="num">${x.deals}</td><td class="num">${x.won}</td><td class="num">${money(x.rev)}</td>
+        <td class="num">${x.cpl!==null?money(x.cpl):"—"}</td>
+        <td class="num">${x.roi!==null?`<span class="pill ${x.roi>=0?"teal":"rust"}">${x.roi}%</span>`:"—"}</td>
+      </tr>`).join(""):`<tr><td colspan="8" class="empty">No campaigns yet.</td></tr>`}</tbody>
+    </table></div>
+  </div>
+
+  ${isManager()?`<div class="card" style="margin-top:14px">
+    <div class="card-h"><h3>Activity volume</h3><div class="spacer"></div><span class="eyebrow">completed · outstanding</span></div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>Person</th><th style="text-align:right">Completed</th><th style="text-align:right">Open</th></tr></thead>
+      <tbody>${Array.from(actByOwner.entries()).map(([uid,v])=>`<tr>
+        <td>${esc(userName(uid))}</td><td class="num">${v.done}</td><td class="num">${v.open}</td>
+      </tr>`).join("")||`<tr><td colspan="3" class="empty">No activities logged.</td></tr>`}</tbody>
+    </table></div>
+  </div>`:""}
+  `;
+}
+/* ------------------------------------------------------------------ */
+/* 14. TEAM (admin)                                                    */
+/* ------------------------------------------------------------------ */
+function viewTeam(){
+  if(!isAdmin()) return `<div class="empty"><strong>Administrators only</strong>Ask an admin if you need someone added.</div>`;
+  const list = Array.from(state.users.values())
+    .sort((a,b)=>(a.department||"").localeCompare(b.department||"") || (a.displayName||"").localeCompare(b.displayName||""));
+  return `
+  <div class="toolbar">
+    <span class="eyebrow">${list.length} people</span>
+    <div style="flex:1"></div>
+    <span style="font-size:12px;color:var(--muted)">Staff see only their own records. Managers see their whole department.</span>
+  </div>
+  <div class="card"><div class="tbl-wrap"><table>
+    <thead><tr><th>Name</th><th>Role</th><th>Department</th><th>Sees</th>
+      <th style="text-align:right">Monthly target</th><th>Status</th><th style="text-align:right">·</th></tr></thead>
+    <tbody>${list.map(u=>`<tr>
+      <td><strong>${esc(u.displayName||"—")}</strong><div style="font-size:11.5px;color:var(--muted)">${esc(u.email||"")}</div></td>
+      <td>${esc(ROLES[u.role]?.label || u.role)}</td>
+      <td><span class="pill ${DEPT_CLASS[u.department]||""}">${esc(u.department||"—")}</span></td>
+      <td style="font-size:12px;color:var(--muted)">${ ({admin:"Everything",manager:"Whole department",staff:"Own records"})[ROLES[u.role]?.tier] || "—" }</td>
+      <td class="num">${u.monthlyTarget?money(u.monthlyTarget):"—"}</td>
+      <td>${u.active===false?`<span class="pill rust">Inactive</span>`:`<span class="pill teal">Active</span>`}</td>
+      <td class="row-act">
+        <button class="btn sm" data-reset="${esc(u.email||"")}">Reset password</button>
+        <button class="btn sm" data-user="${u.id}">Edit</button>
+      </td>
+    </tr>`).join("")}</tbody>
+  </table></div></div>`;
+}
+
+/* ------------------------------------------------------------------ */
+/* 15. SETTINGS (admin)                                                */
+/* ------------------------------------------------------------------ */
+const LISTS = [
+  { k:"sources",     l:"Lead sources",  h:"Where a lead came from." },
+  { k:"industries",  l:"Industries",    h:"Used to segment accounts." },
+  { k:"lostReasons", l:"Lost reasons",  h:"Required when a deal is marked Lost." },
+  { k:"channels",    l:"Campaign channels", h:"Marketing channel options." }
+];
+function viewSettings(){
+  if(!isAdmin()) return `<div class="empty"><strong>Administrators only</strong></div>`;
+  const s = state.settings;
+  return `
+  <div class="card" style="max-width:760px">
+    <div class="card-h"><h3>Company settings</h3><div class="spacer"></div>
+      <button class="btn pri" id="save-settings">Save settings</button></div>
+    <div style="padding:18px 20px">
+      <div class="fgrid" style="margin-bottom:18px">
+        <div class="field">
+          <label for="s-cur">Currency</label>
+          <select id="s-cur">${["PHP","USD","EUR","GBP","SGD","AUD","JPY"].map(c=>opt(c,s.currency)).join("")}</select>
+        </div>
+        <div class="field">
+          <label for="s-warm">Stage age warning (days)</label>
+          <input id="s-warm" type="number" min="1" value="${s.staleDays[0]}">
+          <span class="hint">Cards turn amber after this long without moving.</span>
+        </div>
+        <div class="field">
+          <label for="s-cold">Stage age alarm (days)</label>
+          <input id="s-cold" type="number" min="2" value="${s.staleDays[1]}">
+          <span class="hint">Cards turn red and appear on the dashboard.</span>
+        </div>
+      </div>
+      ${LISTS.map(L=>`<div class="field full" style="margin-bottom:16px">
+        <label for="s-${L.k}">${esc(L.l)}</label>
+        <textarea id="s-${L.k}" style="min-height:84px">${esc((s[L.k]||[]).join("\n"))}</textarea>
+        <span class="hint">${esc(L.h)} One per line.</span>
+      </div>`).join("")}
+    </div>
+  </div>`;
+}
+
+/* ------------------------------------------------------------------ */
+/* 16. VIEW WIRING                                                     */
+/* ------------------------------------------------------------------ */
+function wireView(){
+  const v = $("#view");
+  v.querySelectorAll("[data-open]").forEach(el=> el.onclick = ()=>{
+    const [c,id] = el.dataset.open.split(":"); openDetail(c,id);
+  });
+  v.querySelectorAll("[data-edit]").forEach(el=> el.onclick = ()=>{
+    const [c,id] = el.dataset.edit.split(":"); openForm(c,id);
+  });
+  v.querySelectorAll("[data-go]").forEach(el=> el.onclick = ()=> setRoute(el.dataset.go));
+  v.querySelectorAll("[data-convert]").forEach(el=> el.onclick = ()=> openConvert(el.dataset.convert));
+  v.querySelectorAll("[data-user]").forEach(el=> el.onclick = ()=> openUserForm(el.dataset.user));
+  v.querySelectorAll("[data-reset]").forEach(el=> el.onclick = async ()=>{
+    const em = el.dataset.reset; if(!em) return;
+    try{ await sendPasswordResetEmail(auth, em); toast("Reset link sent to "+em); }
+    catch(e){ toast(e.message,true); }
+  });
+  v.querySelectorAll("[data-done],[data-donebtn]").forEach(el=> el.onclick = ()=>
+    markDone(el.dataset.done || el.dataset.donebtn));
+  v.querySelectorAll("[data-sort]").forEach(el=> el.onclick = ()=>{
+    const col = state.route==="pipeline" ? "deals" : state.route;
+    const f = state.filters[col] = state.filters[col] || {};
+    if (f.sort === el.dataset.sort) f.dir = f.dir===1?-1:1; else { f.sort = el.dataset.sort; f.dir = 1; }
+    render();
+  });
+  v.querySelectorAll("[data-filter]").forEach(el=> el.onchange = ()=>{
+    const col = el.dataset.col || (state.route==="pipeline" ? "deals" : state.route);
+    const f = state.filters[col] = state.filters[col] || {};
+    f[el.dataset.filter] = el.value; render();
+  });
+  v.querySelectorAll("[data-pipe]").forEach(el=> el.onclick = ()=>{
+    state.filters.pipeMode = el.dataset.pipe; render();
+  });
+  const ss = v.querySelector("#save-settings"); if (ss) ss.onclick = saveSettings;
+
+  // drag and drop on the board
+  let dragId = null;
+  v.querySelectorAll("[data-deal]").forEach(card=>{
+    card.addEventListener("dragstart", e=>{ dragId = card.dataset.deal; card.classList.add("drag"); e.dataTransfer.effectAllowed="move"; });
+    card.addEventListener("dragend", ()=> card.classList.remove("drag"));
+  });
+  v.querySelectorAll("[data-stage]").forEach(col=>{
+    col.addEventListener("dragover", e=>{ e.preventDefault(); col.classList.add("over"); });
+    col.addEventListener("dragleave", ()=> col.classList.remove("over"));
+    col.addEventListener("drop", async e=>{
+      e.preventDefault(); col.classList.remove("over");
+      if(!dragId) return;
+      const stage = col.dataset.stage, d = state.data.deals.get(dragId);
+      if(!d || d.stage === stage) return;
+      if (stage === "Lost") return openForm("deals", dragId, { stage });
+      await moveDeal(dragId, stage);
+      dragId = null;
+    });
+  });
+}
+
+async function moveDeal(id, stage){
+  const patch = { stage, probability: stageProb(stage), stageChangedAt: serverTimestamp(), updatedAt: serverTimestamp() };
+  if (["Won","Lost"].includes(stage)) patch.closedAt = serverTimestamp();
+  try{ await updateDoc(doc(db,"deals",id), patch); toast(`Moved to ${stage}`); }
+  catch(e){ toast(e.message,true); }
+}
+async function markDone(id){
+  try{ await updateDoc(doc(db,"activities",id), { status:"Done", completedAt: serverTimestamp(), updatedAt: serverTimestamp() }); toast("Marked done"); }
+  catch(e){ toast(e.message,true); }
+}
+async function saveSettings(){
+  const payload = {
+    currency: $("#s-cur").value,
+    staleDays: [Number($("#s-warm").value)||7, Number($("#s-cold").value)||21],
+    ...Object.fromEntries(LISTS.map(L=>[L.k, $("#s-"+L.k).value.split("\n").map(s=>s.trim()).filter(Boolean)]))
+  };
+  try{ await setDoc(doc(db,"settings","config"), payload, { merge:true }); toast("Settings saved"); }
+  catch(e){ toast(e.message,true); }
+}
+/* ------------------------------------------------------------------ */
+/* 17. MODAL PLUMBING                                                  */
+/* ------------------------------------------------------------------ */
+function modal(html, wide){
+  const root = $("#modal-root");
+  root.innerHTML = `<div class="scrim"><div class="modal${wide?" wide":""}">${html}</div></div>`;
+  const scrim = root.querySelector(".scrim");
+  scrim.onclick = e=>{ if(e.target===scrim) closeModal(); };
+  root.querySelectorAll("[data-close]").forEach(b=> b.onclick = closeModal);
+  document.addEventListener("keydown", escClose);
+  return root;
+}
+function closeModal(){ $("#modal-root").innerHTML = ""; document.removeEventListener("keydown", escClose); }
+function escClose(e){ if(e.key==="Escape") closeModal(); }
+
+function fieldHTML(col,f,d){
+  const v = d?.[f.k] ?? f.def ?? "";
+  const id = "f-"+f.k;
+  const lab = `<label for="${id}">${esc(f.l)}${f.req?' <span class="req">*</span>':""}</label>`;
+  let input;
+  if (f.type === "textarea") input = `<textarea id="${id}" data-k="${f.k}">${esc(v)}</textarea>`;
+  else if (f.type === "select"){
+    const opts = f.optsFrom ? (state.settings[f.optsFrom]||[]) : f.opts;
+    input = `<select id="${id}" data-k="${f.k}"><option value="">—</option>${opts.map(o=>opt(o,v)).join("")}</select>`;
+  }
+  else if (f.type === "ref"){
+    if (f.refTo === "users"){
+      const locked = !isManager();
+      input = `<select id="${id}" data-k="${f.k}"${locked?" disabled":""}>
+        ${locked ? `<option value="${myUid()}">${esc(state.profile.displayName||"You")}</option>` : ownerOptions(v||myUid())}
+      </select>${locked?`<span class="hint">Records you create are yours. A manager can reassign them.</span>`:""}`;
+    } else if (f.refTo === "dynamic"){
+      input = `<select id="${id}" data-k="${f.k}" data-dynamic="1">${dynamicOptions(d?.relatedType || "Lead", v)}</select>`;
+    } else {
+      const list = rows(f.refTo).sort((a,b)=>titleOf(f.refTo,a).localeCompare(titleOf(f.refTo,b)));
+      input = `<select id="${id}" data-k="${f.k}"><option value="">—</option>
+        ${list.map(r=>`<option value="${r.id}"${r.id===v?" selected":""}>${esc(titleOf(f.refTo,r))}</option>`).join("")}</select>`;
+    }
+  }
+  else {
+    const t = f.type==="money"||f.type==="number" ? "number" : f.type==="url" ? "url" : f.type;
+    input = `<input id="${id}" data-k="${f.k}" type="${t}"${f.type==="money"?' step="any" min="0"':""} value="${esc(v)}">`;
+  }
+  return `<div class="field${f.full||f.type==="textarea"?" full":""}">${lab}${input}</div>`;
+}
+function dynamicOptions(type, sel){
+  const map = { Lead:"leads", Account:"accounts", Contact:"contacts", Deal:"deals" };
+  const c = map[type] || "leads";
+  const list = rows(c).sort((a,b)=>titleOf(c,a).localeCompare(titleOf(c,b)));
+  return `<option value="">—</option>` + list.map(r=>`<option value="${r.id}"${r.id===sel?" selected":""}>${esc(titleOf(c,r))}</option>`).join("");
+}
+
+/* ---- create / edit record ---- */
+function openForm(col, id, preset){
+  const S = SCHEMAS[col]; if(!S) return;
+  const d = id ? { ...state.data[col].get(id), ...(preset||{}) } : (preset||{});
+  modal(`
+    <div class="modal-h"><h3>${id?"Edit":"New"} ${esc(S.label.toLowerCase())}</h3>
+      <button class="x" data-close aria-label="Close">×</button></div>
+    <div class="modal-b">
+      <div id="form-err" class="err hidden"></div>
+      <div class="fgrid">${S.fields.map(f=>fieldHTML(col,f,d)).join("")}</div>
+    </div>
+    <div class="modal-f">
+      ${id?`<button class="btn dgr" id="del">Delete</button>`:""}
+      <div class="spacer"></div>
+      <button class="btn" data-close>Cancel</button>
+      <button class="btn pri" id="save">${id?"Save changes":"Create "+esc(S.label.toLowerCase())}</button>
+    </div>`);
+
+  const relType = document.querySelector('[data-k="relatedType"]');
+  if (relType) relType.onchange = ()=>{
+    const sel = document.querySelector('[data-dynamic]');
+    if (sel) sel.innerHTML = dynamicOptions(relType.value, "");
+  };
+  const stageSel = document.querySelector('[data-k="stage"]');
+  if (stageSel && preset?.stage) stageSel.value = preset.stage;
+
+  $("#save").onclick = ()=> submitForm(col,id);
+  const del = document.querySelector("#del");
+  if (del) del.onclick = async ()=>{
+    if(!confirm(`Delete this ${S.label.toLowerCase()}? This can't be undone.`)) return;
+    try{ await deleteDoc(doc(db,col,id)); closeModal(); toast(S.label+" deleted"); }
+    catch(e){ toast(e.message,true); }
+  };
+}
+
+async function submitForm(col,id){
+  const S = SCHEMAS[col], vals = {}, errs = [];
+  document.querySelectorAll("#modal-root [data-k]").forEach(el=>{
+    const f = S.fields.find(x=>x.k===el.dataset.k);
+    let v = el.value;
+    if (f && (f.type==="money"||f.type==="number")) v = v==="" ? null : Number(v);
+    vals[el.dataset.k] = v === "" ? null : v;
+  });
+  if (!isManager()) vals.ownerId = id ? (state.data[col].get(id)?.ownerId || myUid()) : myUid();
+  if (!vals.ownerId) vals.ownerId = myUid();
+  S.fields.forEach(f=>{ if(f.req && (vals[f.k]===null||vals[f.k]==="")) errs.push(f.l+" is required."); });
+  if (col==="deals" && vals.stage==="Lost" && !vals.lostReason) errs.push("Choose a lost reason so the report means something.");
+  if (errs.length){
+    const box = $("#form-err"); box.innerHTML = errs.map(esc).join("<br>"); box.classList.remove("hidden");
+    box.scrollIntoView({block:"nearest"}); return;
+  }
+  const owner = state.users.get(vals.ownerId);
+  const payload = { ...vals, department: owner?.department || state.profile.department, updatedAt: serverTimestamp() };
+  if (col==="deals") payload.probability = stageProb(vals.stage);
+  const prev = id ? state.data[col].get(id) : null;
+  if (!id){
+    payload.createdAt = serverTimestamp(); payload.createdBy = myUid();
+    if (col==="deals") payload.stageChangedAt = serverTimestamp();
+  } else if (col==="deals" && prev && prev.stage !== vals.stage){
+    payload.stageChangedAt = serverTimestamp();
+    if (["Won","Lost"].includes(vals.stage)) payload.closedAt = serverTimestamp();
+  }
+  $("#save").disabled = true;
+  try{
+    if (id) await updateDoc(doc(db,col,id), payload);
+    else    await addDoc(collection(db,col), payload);
+    closeModal(); toast(S.label + (id?" saved":" created"));
+  }catch(e){
+    $("#save").disabled = false;
+    const box = $("#form-err"); box.textContent = e.message; box.classList.remove("hidden");
+  }
+}
+
+/* ---- read-only detail ---- */
+function openDetail(col,id){
+  const S = SCHEMAS[col], d = state.data[col].get(id);
+  if(!d) return;
+  const related = rows("activities").filter(a=>a.relatedId===id)
+    .sort((a,b)=>(toDate(b.dueDate)||0)-(toDate(a.dueDate)||0));
+  modal(`
+    <div class="modal-h">
+      <div>
+        <div class="eyebrow">${esc(S.label)}</div>
+        <h3>${esc(titleOf(col,d))}</h3>
+      </div>
+      <button class="x" data-close aria-label="Close">×</button>
+    </div>
+    <div class="modal-b">
+      <div class="det">
+        ${S.fields.filter(f=>d[f.k]!==undefined && d[f.k]!==null && d[f.k]!=="").map(f=>`
+          <div class="r ${f.type==="textarea"?"full":""}">
+            <div class="k">${esc(f.l)}</div><div class="v">${cell(col,f,d)}</div>
+          </div>`).join("")}
+        <div class="r"><div class="k">Created</div><div class="v mono" style="font-size:12.5px">${fmtDate(d.createdAt)} by ${esc(userName(d.createdBy))}</div></div>
+        <div class="r"><div class="k">Last touched</div><div class="v mono" style="font-size:12.5px">${fmtDate(d.updatedAt)}</div></div>
+      </div>
+      <div style="margin-top:20px">
+        <div class="card-h" style="padding-left:0;padding-right:0"><h3>Activity</h3><div class="spacer"></div>
+          <button class="btn sm" id="log-act">Log activity</button></div>
+        ${related.length ? related.map(a=>`
+          <div style="display:flex;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line-2)">
+            <span class="pill">${esc(a.type)}</span>
+            <div style="flex:1"><div style="font-size:13px">${esc(a.subject)}</div>
+              <div style="font-size:11.5px;color:var(--muted)">${fmtDate(a.dueDate)} · ${esc(userName(a.ownerId))}</div></div>
+            ${a.status==="Done"?`<span class="pill teal">Done</span>`:`<button class="btn sm" data-quickdone="${a.id}">Done</button>`}
+          </div>`).join("")
+        : `<p style="color:var(--muted);font-size:13px;margin:8px 0">Nothing logged against this record yet.</p>`}
+      </div>
+    </div>
+    <div class="modal-f">
+      ${col==="leads" && d.status!=="Converted" ? `<button class="btn" id="conv">Convert to deal</button>`:""}
+      <div class="spacer"></div>
+      <button class="btn" data-close>Close</button>
+      <button class="btn pri" id="editme">Edit</button>
+    </div>`, true);
+
+  $("#editme").onclick = ()=>{ closeModal(); openForm(col,id); };
+  const c = document.querySelector("#conv"); if(c) c.onclick = ()=>{ closeModal(); openConvert(id); };
+  $("#log-act").onclick = ()=>{
+    closeModal();
+    openForm("activities", null, { relatedType:S.label, relatedId:id, dueDate:todayISO() });
+  };
+  document.querySelectorAll("[data-quickdone]").forEach(b=> b.onclick = async ()=>{
+    await markDone(b.dataset.quickdone); closeModal();
+  });
+}
+
+/* ---- convert a lead into account + contact + deal ---- */
+function openConvert(leadId){
+  const l = state.data.leads.get(leadId); if(!l) return;
+  const accts = rows("accounts").sort((a,b)=>(a.name||"").localeCompare(b.name||""));
+  const names = (l.contactName||"").split(" ");
+  modal(`
+    <div class="modal-h"><h3>Convert lead</h3><button class="x" data-close aria-label="Close">×</button></div>
+    <div class="modal-b">
+      <div id="form-err" class="err hidden"></div>
+      <p style="color:var(--muted);margin-top:0;font-size:13px">
+        This creates an account, a contact, and an open deal from <strong>${esc(l.company)}</strong>, then marks the lead converted.</p>
+      <div class="fgrid">
+        <div class="field full">
+          <label for="c-acct">Account</label>
+          <select id="c-acct"><option value="">Create new: ${esc(l.company)}</option>
+            ${accts.map(a=>`<option value="${a.id}">Link to existing: ${esc(a.name)}</option>`).join("")}</select>
+        </div>
+        <div class="field"><label for="c-first">Contact first name</label><input id="c-first" value="${esc(names[0]||"")}"></div>
+        <div class="field"><label for="c-last">Contact last name</label><input id="c-last" value="${esc(names.slice(1).join(" "))}"></div>
+        <div class="field full"><label for="c-title">Deal name <span class="req">*</span></label>
+          <input id="c-title" value="${esc(l.company)} opportunity"></div>
+        <div class="field"><label for="c-val">Deal value <span class="req">*</span></label>
+          <input id="c-val" type="number" min="0" step="any" value="${esc(l.estValue||"")}"></div>
+        <div class="field"><label for="c-stage">Stage</label>
+          <select id="c-stage">${OPEN_STAGES.map(s=>opt(s,"Qualified")).join("")}</select></div>
+        <div class="field"><label for="c-close">Expected close</label><input id="c-close" type="date"></div>
+        <div class="field"><label for="c-owner">Deal owner</label>
+          <select id="c-owner"${isManager()?"":" disabled"}>
+            ${isManager()?ownerOptions(l.ownerId||myUid()):`<option value="${myUid()}">${esc(state.profile.displayName||"You")}</option>`}
+          </select></div>
+      </div>
+    </div>
+    <div class="modal-f"><div class="spacer"></div>
+      <button class="btn" data-close>Cancel</button>
+      <button class="btn pri" id="do-conv">Convert lead</button></div>`, true);
+
+  $("#do-conv").onclick = async ()=>{
+    const title = $("#c-title").value.trim(), val = Number($("#c-val").value||0);
+    if(!title || !val){ const b=$("#form-err"); b.textContent="A deal needs a name and a value."; b.classList.remove("hidden"); return; }
+    $("#do-conv").disabled = true;
+    const ownerId = $("#c-owner").value || myUid();
+    const dept = state.users.get(ownerId)?.department || state.profile.department;
+    const base = { ownerId, department:dept, createdBy:myUid(), createdAt:serverTimestamp(), updatedAt:serverTimestamp() };
+    try{
+      let accountId = $("#c-acct").value;
+      if(!accountId){
+        const a = await addDoc(collection(db,"accounts"), {
+          ...base, name:l.company, phone:l.phone||null, industry:null, type:"Prospect",
+          notes:`Converted from lead on ${new Date().toLocaleDateString()}.`
+        });
+        accountId = a.id;
+      }
+      let contactId = null;
+      if ($("#c-first").value.trim() || $("#c-last").value.trim()){
+        const c = await addDoc(collection(db,"contacts"), {
+          ...base, firstName:$("#c-first").value.trim(), lastName:$("#c-last").value.trim(),
+          accountId, jobTitle:l.jobTitle||null, email:l.email||null, phone:l.phone||null
+        });
+        contactId = c.id;
+      }
+      const stage = $("#c-stage").value;
+      await addDoc(collection(db,"deals"), {
+        ...base, title, accountId, contactId, value:val, stage, probability:stageProb(stage),
+        expectedCloseDate: $("#c-close").value || null, source:l.source||null, campaignId:l.campaignId||null,
+        sourcedBy: l.createdBy || myUid(), leadId: leadId, stageChangedAt: serverTimestamp()
+      });
+      await updateDoc(doc(db,"leads",leadId), { status:"Converted", convertedAt:serverTimestamp(), updatedAt:serverTimestamp() });
+      closeModal(); toast("Lead converted"); setRoute("pipeline");
+    }catch(e){
+      $("#do-conv").disabled = false;
+      const b=$("#form-err"); b.textContent=e.message; b.classList.remove("hidden");
+    }
+  };
+}
+
+/* ---- add / edit a person (admin) ---- */
+function openUserForm(uid){
+  if(!isAdmin()) return;
+  const u = uid ? state.users.get(uid) : null;
+  modal(`
+    <div class="modal-h"><h3>${uid?"Edit person":"Add person"}</h3><button class="x" data-close aria-label="Close">×</button></div>
+    <div class="modal-b">
+      <div id="form-err" class="err hidden"></div>
+      <div class="fgrid">
+        <div class="field"><label for="u-name">Full name <span class="req">*</span></label>
+          <input id="u-name" value="${esc(u?.displayName||"")}"></div>
+        <div class="field"><label for="u-email">Work email <span class="req">*</span></label>
+          <input id="u-email" type="email" value="${esc(u?.email||"")}"${uid?" disabled":""}>
+          ${uid?`<span class="hint">Email can't be changed here.</span>`:""}</div>
+        ${uid?"":`<div class="field full"><label for="u-pass">Temporary password <span class="req">*</span></label>
+          <input id="u-pass" type="text" value="Mechatrade${Math.floor(1000+Math.random()*9000)}!">
+          <span class="hint">Share this once. They can change it via Reset password.</span></div>`}
+        <div class="field"><label for="u-role">Role <span class="req">*</span></label>
+          <select id="u-role">${Object.entries(ROLES).map(([k,r])=>
+            `<option value="${k}"${u?.role===k?" selected":""}>${esc(r.label)}</option>`).join("")}</select></div>
+        <div class="field"><label for="u-dept">Department</label>
+          <select id="u-dept">${DEPTS.map(dp=>opt(dp,u?.department)).join("")}</select></div>
+        <div class="field"><label for="u-target">Monthly target</label>
+          <input id="u-target" type="number" min="0" step="any" value="${esc(u?.monthlyTarget||"")}">
+          <span class="hint">Leave blank if this role doesn't carry a quota.</span></div>
+        <div class="field"><label for="u-active">Status</label>
+          <select id="u-active"><option value="true"${u?.active!==false?" selected":""}>Active</option>
+            <option value="false"${u?.active===false?" selected":""}>Inactive — can't sign in</option></select></div>
+      </div>
+      ${uid?"":`<p style="font-size:12px;color:var(--muted)">You'll stay signed in — the new account is created in the background.</p>`}
+    </div>
+    <div class="modal-f"><div class="spacer"></div>
+      <button class="btn" data-close>Cancel</button>
+      <button class="btn pri" id="u-save">${uid?"Save changes":"Create account"}</button></div>`);
+
+  const roleSel = document.querySelector("#u-role");
+  roleSel.onchange = ()=>{ document.querySelector("#u-dept").value = ROLES[roleSel.value].dept; };
+  if(!uid) document.querySelector("#u-dept").value = ROLES[roleSel.value].dept;
+
+  $("#u-save").onclick = async ()=>{
+    const name = $("#u-name").value.trim();
+    const email = uid ? u.email : $("#u-email").value.trim();
+    const box = $("#form-err");
+    if(!name || !email){ box.textContent="Name and email are both needed."; box.classList.remove("hidden"); return; }
+    const profile = {
+      displayName:name, email, role:$("#u-role").value, department:$("#u-dept").value,
+      monthlyTarget: Number($("#u-target").value||0) || null,
+      active: $("#u-active").value === "true", updatedAt: serverTimestamp()
+    };
+    $("#u-save").disabled = true;
+    try{
+      if (uid){
+        await updateDoc(doc(db,"users",uid), profile);
+      } else {
+        const pass = $("#u-pass").value;
+        if (pass.length < 6) throw new Error("Password needs at least 6 characters.");
+        const second = initializeApp(firebaseConfig, "provision-" + Date.now());
+        const secondAuth = getAuth(second);
+        const cred = await createUserWithEmailAndPassword(secondAuth, email, pass);
+        await setDoc(doc(db,"users",cred.user.uid), { ...profile, createdAt: serverTimestamp() });
+        await signOut(secondAuth);
+      }
+      closeModal(); toast(uid?"Person updated":"Account created");
+    }catch(e){
+      $("#u-save").disabled = false;
+      box.textContent = ({
+        "auth/email-already-in-use":"That email already has an account.",
+        "auth/weak-password":"Use a longer password — at least 6 characters."
+      })[e.code] || e.message;
+      box.classList.remove("hidden");
+    }
+  };
+}
+
+/* ------------------------------------------------------------------ */
+/* 18. GO                                                              */
+/* ------------------------------------------------------------------ */
+if (firebaseConfig.apiKey === "REPLACE_ME"){
+  document.getElementById("boot").innerHTML =
+    `<div style="max-width:420px;text-align:center;font-family:var(--sans)">
+      <h2 style="font-family:var(--serif)">Add your Firebase keys</h2>
+      <p style="color:#65706A">Open <code>index.html</code>, find <code>REPLACE_ME</code>, and paste the config from your Firebase project. Then reload.</p>
+    </div>`;
+}
+
+</script>
+
+</body>
+</html>

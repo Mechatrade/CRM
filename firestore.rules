@@ -1,0 +1,98 @@
+rules_version = '2';
+
+// ============================================================
+// Mechatrade CRM — Firestore security rules
+// Paste this whole file into Firebase console → Firestore → Rules
+// ============================================================
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---------- who is asking ----------
+    function signedIn()  { return request.auth != null; }
+    function me()        { return get(/databases/$(database)/documents/users/$(request.auth.uid)).data; }
+    function isActive()  { return signedIn() && me().active != false; }
+    function myRole()    { return me().role; }
+    function myDept()    { return me().department; }
+    function isAdmin()   { return isActive() && myRole() == 'admin'; }
+    function isManager() { return isActive() && myRole() in ['sales_officer','bd_manager','marketing_manager']; }
+
+    // ---------- what they may touch ----------
+    // A record is visible if you own it, you created it (marketing keeps
+    // sight of leads it handed over), it came from a lead you sourced,
+    // or you manage the department the record belongs to.
+    function ownsExisting() {
+      return resource.data.ownerId == request.auth.uid
+          || resource.data.createdBy == request.auth.uid
+          || resource.data.get('sourcedBy', '') == request.auth.uid;
+    }
+    function managesExisting() {
+      return isManager() && resource.data.department == myDept();
+    }
+    function canSee()    { return isActive() && (isAdmin() || ownsExisting() || managesExisting()); }
+
+    // You must stamp yourself as the creator. Staff can only create
+    // records they own; managers and admins may assign to someone else.
+    function canCreate() {
+      return isActive()
+          && request.resource.data.createdBy == request.auth.uid
+          && (isAdmin() || isManager() || request.resource.data.ownerId == request.auth.uid);
+    }
+    function canEdit()   {
+      return canSee() && request.resource.data.createdBy == resource.data.createdBy;
+    }
+    function canDelete() {
+      return isAdmin() || managesExisting() || (isActive() && resource.data.ownerId == request.auth.uid);
+    }
+
+    // ---------- the team directory ----------
+    // Everyone reads it so owner names resolve. Only admins create people
+    // or change a role — you cannot promote yourself.
+    match /users/{uid} {
+      allow read:   if signedIn();
+      allow create, delete: if isAdmin();
+      allow update: if isAdmin()
+        || (request.auth.uid == uid
+            && request.resource.data.role       == resource.data.role
+            && request.resource.data.department == resource.data.department
+            && request.resource.data.active     == resource.data.active);
+    }
+
+    // ---------- shared dropdown lists ----------
+    match /settings/{docId} {
+      allow read:  if signedIn();
+      allow write: if isAdmin();
+    }
+
+    // ---------- CRM records ----------
+    match /leads/{id} {
+      allow read: if canSee();  allow create: if canCreate();
+      allow update: if canEdit(); allow delete: if canDelete();
+    }
+    match /accounts/{id} {
+      allow read: if canSee();  allow create: if canCreate();
+      allow update: if canEdit(); allow delete: if canDelete();
+    }
+    match /contacts/{id} {
+      allow read: if canSee();  allow create: if canCreate();
+      allow update: if canEdit(); allow delete: if canDelete();
+    }
+    match /deals/{id} {
+      allow read: if canSee();  allow create: if canCreate();
+      allow update: if canEdit(); allow delete: if canDelete();
+    }
+    match /activities/{id} {
+      allow read: if canSee();  allow create: if canCreate();
+      allow update: if canEdit(); allow delete: if canDelete();
+    }
+    match /campaigns/{id} {
+      allow read: if canSee();  allow create: if canCreate();
+      allow update: if canEdit(); allow delete: if canDelete();
+    }
+
+    // Anything not listed above is closed.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
