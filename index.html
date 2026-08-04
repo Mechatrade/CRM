@@ -404,7 +404,11 @@ td .lnk:hover{border-color:var(--accent);color:var(--accent)}
   color:var(--faint);text-align:left;padding:4px 6px;font-weight:500;
 }
 .items td{padding:3px 4px;vertical-align:top}
-.items input{padding:6px 8px;border:1px solid var(--input-brd);border-radius:5px;background:var(--input-bg);width:100%}
+.items input,.items textarea{
+  padding:6px 8px;border:1px solid var(--input-brd);border-radius:5px;
+  background:var(--input-bg);width:100%;font-family:var(--sans);
+}
+.items textarea{resize:vertical;overflow:hidden;min-height:34px;line-height:1.45}
 .items .x{background:none;border:0;color:var(--faint);cursor:pointer;font-size:16px;padding:0 4px}
 .items .x:hover{color:var(--alert)}
 .totals{display:flex;flex-direction:column;gap:5px;align-items:flex-end;margin-top:12px;font-family:var(--mono);font-size:13px}
@@ -3135,7 +3139,8 @@ function quoteTotals(items, discountPct, taxPct){
 }
 function itemRow(i, it={}){
   return `<tr data-row="${i}">
-    <td><input data-i="desc" value="${esc(it.desc||"")}" placeholder="Item or service"></td>
+    <td><textarea data-i="desc" rows="1" placeholder="Item or service&#10;Brand: …&#10;Model: …"
+      >${esc(it.desc||"")}</textarea></td>
     <td style="width:78px"><input data-i="qty" type="number" min="0" step="any" value="${esc(it.qty??1)}"></td>
     <td style="width:118px"><input data-i="price" type="number" min="0" step="any" value="${esc(it.price??"")}"></td>
     <td style="width:112px;text-align:right;font-family:var(--mono);font-size:12.5px;padding-top:12px"
@@ -3184,7 +3189,9 @@ function openQuoteForm(id, preset){
           <input id="q-valid" type="date" value="${esc(q.validUntil||plus30)}"></div>
       </div>
 
-      <div class="eyebrow" style="margin:20px 0 2px">Line items</div>
+      <div class="eyebrow" style="margin:20px 0 2px">Line items
+        <span style="text-transform:none;letter-spacing:0;color:var(--faint);font-family:var(--sans);font-size:11px">
+          — Ctrl+Shift+Enter for a detail line, Enter for a new item</span></div>
       <table class="items">
         <thead><tr><th>Description</th><th>Qty</th><th>Unit price</th><th style="text-align:right">Amount</th><th></th></tr></thead>
         <tbody id="q-items">${items.map((it,i)=>itemRow(i,it)).join("")}</tbody>
@@ -3229,8 +3236,30 @@ function openQuoteForm(id, preset){
       ${t.tax?`<div class="row"><span style="color:var(--muted)">Tax</span><span>${money(t.tax)}</span></div>`:""}
       <div class="row grand"><span>Total</span><span>${money(t.total)}</span></div>`;
   }
+  function grow(t){ t.style.height = "auto"; t.style.height = (t.scrollHeight + 2) + "px"; }
   function wireRows(){
-    document.querySelectorAll("#q-items input").forEach(i=> i.oninput = recalc);
+    document.querySelectorAll("#q-items input, #q-items textarea").forEach(i=> i.oninput = recalc);
+    document.querySelectorAll('#q-items [data-i="desc"]').forEach(t=>{
+      grow(t);
+      t.addEventListener("input", ()=> grow(t));
+      t.addEventListener("keydown", e=>{
+        if (e.key !== "Enter") return;
+        if (e.ctrlKey || e.metaKey || e.shiftKey){
+          // stay on this item and start a new detail line
+          e.preventDefault();
+          const p = t.selectionStart, q2 = t.selectionEnd;
+          t.value = t.value.slice(0,p) + "\n" + t.value.slice(q2);
+          t.selectionStart = t.selectionEnd = p + 1;
+          grow(t); recalc();
+        } else {
+          // plain Enter moves on to a new line item
+          e.preventDefault();
+          $("#q-add").click();
+          const last = document.querySelector('#q-items tr:last-child [data-i="desc"]');
+          if (last) last.focus();
+        }
+      });
+    });
     document.querySelectorAll("[data-del-row]").forEach(b=> b.onclick = ()=>{
       if (document.querySelectorAll("#q-items tr").length <= 1) return;
       b.closest("tr").remove(); recalc();
@@ -3357,7 +3386,7 @@ function openQuoteDetail(id){
         <thead><tr><th>Description</th><th style="text-align:right">Qty</th>
           <th style="text-align:right">Unit price</th><th style="text-align:right">Amount</th></tr></thead>
         <tbody>${items.map(i=>`<tr>
-          <td style="padding:7px 6px">${esc(i.desc)}</td>
+          <td style="padding:7px 6px">${descAppHTML(i.desc)}</td>
           <td class="num" style="padding:7px 6px">${i.qty}</td>
           <td class="num" style="padding:7px 6px">${money(i.price)}</td>
           <td class="num" style="padding:7px 6px">${money(i.qty*i.price)}</td>
@@ -3386,6 +3415,25 @@ function openQuoteDetail(id){
 
 /* The quotation document. Preview and print render exactly the same HTML,
    so what you see on screen is what comes out of the printer. */
+/* First line is the item; anything after it is supporting detail. */
+function descLines(d){
+  return String(d||"").split("\n").map(x=>x.trim()).filter(Boolean);
+}
+function descDocHTML(d){
+  const l = descLines(d);
+  if (!l.length) return "";
+  return `<div style="font-weight:600">${esc(l[0])}</div>` +
+    (l.length>1 ? `<div style="font-size:10px;color:#5A6B7C;margin-top:3px;line-height:1.55">
+      ${l.slice(1).map(esc).join("<br>")}</div>` : "");
+}
+function descAppHTML(d){
+  const l = descLines(d);
+  if (!l.length) return "—";
+  return `<div style="font-weight:600">${esc(l[0])}</div>` +
+    (l.length>1 ? `<div style="font-size:11.5px;color:var(--muted);margin-top:2px;line-height:1.5">
+      ${l.slice(1).map(esc).join("<br>")}</div>` : "");
+}
+
 function quoteDocCSS(){
   return `
     @page{ size:A4; margin:14mm; }
@@ -3487,7 +3535,7 @@ function quoteDocHTML(q){
       </tr></thead>
       <tbody>${items.length ? items.map((i,n)=>`<tr>
         <td class="c">${n+1}</td>
-        <td>${esc(i.desc||"")}</td>
+        <td>${descDocHTML(i.desc)}</td>
         <td class="c">${i.qty}</td>
         <td class="r">${money(i.price)}</td>
         <td class="r">${money(Number(i.qty||0)*Number(i.price||0))}</td>
