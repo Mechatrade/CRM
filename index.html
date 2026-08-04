@@ -367,6 +367,48 @@ td .lnk:hover{border-color:var(--accent);color:var(--accent)}
 .legend{display:flex;gap:14px;align-items:center;font-size:11.5px;color:var(--muted);margin-bottom:12px}
 .legend i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:5px;vertical-align:-1px}
 
+/* ---------- calendar ---------- */
+.cal{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}
+.cal-h{
+  font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--faint);text-align:center;padding:4px 0 6px;
+}
+.cal-cell{
+  min-height:92px;border:1px solid var(--hair-2);border-radius:6px;padding:5px 6px;
+  background:var(--glass-deal);cursor:pointer;overflow:hidden;
+}
+.cal-cell:hover{border-color:var(--accent)}
+.cal-cell.empty-cell{background:none;border:0;cursor:default}
+.cal-cell.now{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+.cal-cell.sel{background:var(--accent-weak)}
+.cal-n{font-family:var(--mono);font-size:11.5px;color:var(--muted);margin-bottom:4px}
+.cal-cell.now .cal-n{color:var(--accent);font-weight:600}
+.cal-ev{
+  font-size:11px;line-height:1.3;padding:2px 5px;border-radius:3px;margin-bottom:3px;
+  background:var(--line-2);color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  border-left:2px solid var(--faint);
+}
+.cal-ev.accent{background:var(--accent-weak);border-left-color:var(--accent)}
+.cal-ev.warn{background:var(--warn-weak);border-left-color:var(--warn)}
+.cal-ev.info{background:var(--info-weak);border-left-color:var(--info)}
+.cal-ev.done{opacity:.5;text-decoration:line-through}
+.cal-more{font-size:10.5px;color:var(--faint);font-family:var(--mono)}
+@media(max-width:760px){.cal-cell{min-height:64px}.cal-ev{font-size:10px}}
+
+/* ---------- quotation line items ---------- */
+.items{width:100%;border-collapse:collapse;margin-top:4px}
+.items th{
+  font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--faint);text-align:left;padding:4px 6px;font-weight:500;
+}
+.items td{padding:3px 4px;vertical-align:top}
+.items input{padding:6px 8px;border:1px solid var(--input-brd);border-radius:5px;background:var(--input-bg);width:100%}
+.items .x{background:none;border:0;color:var(--faint);cursor:pointer;font-size:16px;padding:0 4px}
+.items .x:hover{color:var(--alert)}
+.totals{display:flex;flex-direction:column;gap:5px;align-items:flex-end;margin-top:12px;font-family:var(--mono);font-size:13px}
+.totals .row{display:flex;gap:26px;min-width:230px;justify-content:space-between}
+.totals .grand{font-size:17px;font-weight:600;border-top:1px solid var(--hair-2);padding-top:7px;margin-top:3px}
+
 /* ---------- modal ---------- */
 .scrim{
   position:fixed;inset:0;background:rgba(8,24,43,.5);
@@ -692,7 +734,7 @@ const DEFAULT_SETTINGS = {
   sources:     ["Website","Referral","Cold Call","Walk-in","Trade Show","Social Media","Email Campaign","Partner","Existing Client"],
   industries:  ["Construction","Manufacturing","Retail","Logistics","Real Estate","Healthcare","Education","Government","Hospitality","Financial Services","Other"],
   lostReasons: ["Price too high","Lost to competitor","No budget","No decision","Timing","No response","Not a fit"],
-  channels:    ["Email","Social Media","Events","Print","Paid Ads","Webinar","Referral Program"],
+  channels:    ["Facebook Ads","Google Ads","LinkedIn","Email Campaign","Trade Show","Seminar","Product Launch","Print","Webinar","Referral Program"],
   staleDays:   [7, 21]
 };
 
@@ -727,12 +769,15 @@ const SCHEMAS = {
     fields:[
       { k:"name",     l:"Company name", type:"text",   req:true, table:true },
       { k:"industry", l:"Industry",     type:"select", optsFrom:"industries", table:true },
-      { k:"type",     l:"Type",         type:"select", opts:["Prospect","Client","Partner","Former client"], def:"Prospect", table:true },
+      { k:"type",     l:"Type",         type:"select", opts:["Prospect","Client","Supplier","Contractor","Consultant","Manufacturer","Partner","Former client"], def:"Prospect", table:true },
+      { k:"companySize", l:"Company size", type:"select", opts:["1–10","11–50","51–200","201–500","500+"] },
+      { k:"priority", l:"Priority",     type:"select", opts:["High","Medium","Low"], def:"Medium", table:true },
       { k:"website",  l:"Website",      type:"url" },
       { k:"phone",    l:"Phone",        type:"tel",    table:true },
       { k:"city",     l:"City",         type:"text",   table:true },
       { k:"address",  l:"Address",      type:"text",   full:true },
       { k:"ownerId",  l:"Owner",        type:"ref",    refTo:"users", table:true, assignOnly:true },
+      { k:"documents",l:"Documents",    type:"links",  full:true },
       { k:"notes",    l:"Notes",        type:"textarea", full:true }
     ]
   },
@@ -759,6 +804,11 @@ const SCHEMAS = {
       { k:"value",             l:"Deal value",   type:"money",  req:true, table:true },
       { k:"stage",             l:"Stage",        type:"select", opts:STAGES.map(s=>s.key), def:"New", table:true },
       { k:"expectedCloseDate", l:"Expected close", type:"date", table:true },
+      { k:"expectedRevenue",   l:"Expected revenue", type:"computed", table:true },
+      { k:"opportunityType",   l:"Opportunity type", type:"select", opts:["Direct","RFQ","Tender / Bidding"], def:"Direct", table:true },
+      { k:"sector",            l:"Sector",       type:"select", opts:["Private","Government"], def:"Private" },
+      { k:"tenderRef",         l:"Tender / RFQ ref", type:"text" },
+      { k:"submissionDeadline",l:"Submission deadline", type:"date" },
       { k:"source",            l:"Source",       type:"select", optsFrom:"sources" },
       { k:"campaignId",        l:"Campaign",     type:"ref",    refTo:"campaigns" },
       { k:"lostReason",        l:"Lost reason",  type:"select", optsFrom:"lostReasons" },
@@ -766,11 +816,27 @@ const SCHEMAS = {
       { k:"notes",             l:"Notes",        type:"textarea", full:true }
     ]
   },
+  quotations: {
+    label:"Quotation", plural:"Quotations", icon:"❑", titleField:"quoteNo",
+    fields:[
+      { k:"quoteNo",    l:"Quote no.",   type:"text",   req:true, table:true },
+      { k:"title",      l:"Subject",     type:"text",   req:true, table:true },
+      { k:"accountId",  l:"Customer",    type:"ref",    refTo:"accounts", table:true },
+      { k:"dealId",     l:"Opportunity", type:"ref",    refTo:"deals" },
+      { k:"contactId",  l:"Attention to",type:"ref",    refTo:"contacts" },
+      { k:"status",     l:"Status",      type:"select", opts:["Draft","Sent","Viewed","Approved","Declined","Expired"], def:"Draft", table:true },
+      { k:"issueDate",  l:"Issued",      type:"date",   table:true },
+      { k:"validUntil", l:"Valid until", type:"date",   table:true },
+      { k:"total",      l:"Total",       type:"money",  table:true },
+      { k:"ownerId",    l:"Owner",       type:"ref",    refTo:"users", table:true, assignOnly:true },
+      { k:"terms",      l:"Terms & notes", type:"textarea", full:true }
+    ]
+  },
   activities: {
     label:"Activity", plural:"Activities", icon:"◉", titleField:"subject",
     fields:[
       { k:"subject",     l:"Subject",    type:"text",   req:true, table:true },
-      { k:"type",        l:"Type",       type:"select", opts:["Call","Meeting","Email","Task","Site Visit","Demo"], def:"Call", table:true },
+      { k:"type",        l:"Type",       type:"select", opts:["Call","Meeting","Email","Task","Site Visit","Demo","Presentation","MOU / Agreement"], def:"Call", table:true },
       { k:"relatedType", l:"Related to", type:"select", opts:["Lead","Account","Contact","Deal"], def:"Lead", table:true },
       { k:"relatedId",   l:"Record",     type:"ref",    refTo:"dynamic", table:true },
       { k:"dueDate",     l:"Due date",   type:"date",   table:true },
@@ -788,9 +854,57 @@ const SCHEMAS = {
       { k:"startDate",   l:"Start date",    type:"date",   table:true },
       { k:"endDate",     l:"End date",      type:"date",   table:true },
       { k:"budget",      l:"Budget",        type:"money",  table:true },
-      { k:"targetLeads", l:"Target leads",  type:"number", table:true },
+      { k:"spend",       l:"Actual spend",  type:"money",  table:true },
+      { k:"targetLeads", l:"Target leads",  type:"number" },
+      { k:"impressions", l:"Impressions",   type:"number" },
+      { k:"clicks",      l:"Clicks",        type:"number" },
+      { k:"visitors",    l:"Website visitors", type:"number" },
+      { k:"engagements", l:"Social engagements", type:"number" },
+      { k:"emailsSent",  l:"Emails sent",   type:"number" },
+      { k:"emailsOpened",l:"Emails opened", type:"number" },
+      { k:"landingUrl",  l:"Landing page",  type:"url" },
       { k:"ownerId",     l:"Owner",         type:"ref",    refTo:"users", table:true, assignOnly:true },
       { k:"notes",       l:"Notes",         type:"textarea", full:true }
+    ]
+  },
+  intel: {
+    label:"Intel note", plural:"Market intelligence", icon:"◇", titleField:"title",
+    fields:[
+      { k:"title",    l:"Headline",  type:"text",   req:true, table:true },
+      { k:"type",     l:"Type",      type:"select", opts:["Competitor","Market trend","Pricing","Regulation"], def:"Competitor", table:true },
+      { k:"company",  l:"Competitor / company", type:"text", table:true },
+      { k:"industry", l:"Industry",  type:"select", optsFrom:"industries", table:true },
+      { k:"impact",   l:"Impact",    type:"select", opts:["High","Medium","Low"], def:"Medium", table:true },
+      { k:"noticedOn",l:"Noticed on",type:"date",   table:true },
+      { k:"sourceUrl",l:"Source link",type:"url" },
+      { k:"ownerId",  l:"Logged by", type:"ref",    refTo:"users", assignOnly:true },
+      { k:"notes",    l:"Detail",    type:"textarea", full:true }
+    ]
+  },
+  content: {
+    label:"Content", plural:"Content", icon:"✎", titleField:"title",
+    fields:[
+      { k:"title",      l:"Title",     type:"text",   req:true, table:true },
+      { k:"type",       l:"Format",    type:"select", opts:["Blog post","Social post","Graphic","Video","Newsletter","Case study"], def:"Social post", table:true },
+      { k:"channel",    l:"Channel",   type:"select", opts:["Facebook","LinkedIn","Instagram","Website","Email","YouTube","Print"], table:true },
+      { k:"status",     l:"Status",    type:"select", opts:["Idea","Drafting","In review","Scheduled","Published"], def:"Idea", table:true },
+      { k:"publishDate",l:"Publish on",type:"date",   table:true },
+      { k:"campaignId", l:"Campaign",  type:"ref",    refTo:"campaigns" },
+      { k:"link",       l:"Link",      type:"url" },
+      { k:"ownerId",    l:"Owner",     type:"ref",    refTo:"users", table:true, assignOnly:true },
+      { k:"notes",      l:"Brief",     type:"textarea", full:true }
+    ]
+  },
+  assets: {
+    label:"Asset", plural:"Marketing assets", icon:"▤", titleField:"name",
+    fields:[
+      { k:"name",      l:"Name",     type:"text",   req:true, table:true },
+      { k:"type",      l:"Type",     type:"select", opts:["Brochure","Company profile","Product catalog","Case study","Presentation","Price list","Certificate"], def:"Brochure", table:true },
+      { k:"version",   l:"Version",  type:"text",   table:true },
+      { k:"updatedOn", l:"Last updated", type:"date", table:true },
+      { k:"link",      l:"File link",type:"url",    table:true },
+      { k:"ownerId",   l:"Owner",    type:"ref",    refTo:"users", assignOnly:true },
+      { k:"notes",     l:"Notes",    type:"textarea", full:true }
     ]
   }
 };
@@ -802,7 +916,7 @@ const COLLECTIONS = Object.keys(SCHEMAS);
 const state = {
   user:null, profile:null, workspace:"Admin", settings:{...DEFAULT_SETTINGS},
   data:Object.fromEntries(COLLECTIONS.map(c=>[c,new Map()])),
-  users:new Map(), route:"dashboard", search:"", unsubs:[], filters:{}
+  users:new Map(), stats:new Map(), route:"dashboard", search:"", unsubs:[], filters:{}
 };
 const isAdmin   = ()=> state.profile?.tier === "admin";
 const isManager = ()=> ["admin","manager"].includes(state.profile?.tier);
@@ -1002,6 +1116,12 @@ function subscribeAll(){
     render();
   }, e=>console.warn("users",e)));
 
+  // leaderboard figures only — name, monthly total, target. No records.
+  state.unsubs.push(onSnapshot(collection(db,"stats"), s=>{
+    state.stats = new Map(s.docs.map(d=>[d.id,{id:d.id,...d.data()}]));
+    if (state.route === "performance") render();
+  }, e=>console.warn("stats",e)));
+
   // shared dropdown lists
   state.unsubs.push(onSnapshot(doc(db,"settings","config"), s=>{
     state.settings = { ...DEFAULT_SETTINGS, ...(s.exists()? s.data():{}) };
@@ -1017,10 +1137,35 @@ function subscribeAll(){
         const merged = new Map();
         parts.forEach(m=> m && m.forEach((v,k)=>merged.set(k,v)));
         state.data[col] = merged;
+        if (col === "deals") syncStats();
         renderNav(); render();
       }, e=>console.warn(col,e)));
     });
   });
+}
+
+/* Publish my own monthly total so teammates can see a ranking without
+   being able to read my deals. One small write per session. */
+let statsTimer = null, lastStats = "";
+function syncStats(){
+  if (!state.profile) return;
+  clearTimeout(statsTimer);
+  statsTimer = setTimeout(async ()=>{
+    const month = new Date().toISOString().slice(0,7);
+    const mine = Array.from(state.data.deals.values()).filter(d=>d.ownerId===myUid());
+    const won = wonThisMonth(mine).reduce((s,d)=>s+Number(d.value||0),0);
+    const payload = {
+      displayName: state.profile.displayName || state.user.email,
+      department: state.profile.department, month,
+      won, deals: wonThisMonth(mine).length,
+      target: Number(state.profile.monthlyTarget||0) || null
+    };
+    const sig = JSON.stringify(payload);
+    if (sig === lastStats) return;
+    lastStats = sig;
+    try{ await setDoc(doc(db,"stats",myUid()), { ...payload, updatedAt: serverTimestamp() }, { merge:true }); }
+    catch(e){ console.warn("stats write", e); }
+  }, 2500);
 }
 
 /* ------------------------------------------------------------------ */
@@ -1028,22 +1173,35 @@ function subscribeAll(){
 /* ------------------------------------------------------------------ */
 const NAV = [
   { group:"Work", items:[
-    { id:"dashboard",  label:"Dashboard",  icon:"◧" },
-    { id:"leads",      label:"Leads",      icon:"◔", count:()=>rows("leads").filter(l=>!["Converted","Unqualified"].includes(l.status)).length },
-    { id:"pipeline",   label:"Pipeline",   icon:"◈", count:()=>rows("deals").filter(d=>OPEN_STAGES.includes(d.stage)).length },
-    { id:"activities", label:"Activities", icon:"◉", count:()=>rows("activities").filter(a=>{
-      const n = daysUntil(a.dueDate); return a.status!=="Done" && n!==null && n<=0;
-    }).length }
+    { id:"dashboard",  label:"Dashboard",     icon:"◧" },
+    { id:"tasks",      label:"Tasks",         icon:"✓", count:()=>openTasks().filter(a=>daysUntil(a.dueDate)<=0).length },
+    { id:"leads",      label:"Leads",         icon:"◔", count:()=>rows("leads").filter(l=>!["Converted","Unqualified"].includes(l.status)).length },
+    { id:"pipeline",   label:"Opportunities", icon:"◈", count:()=>rows("deals").filter(d=>OPEN_STAGES.includes(d.stage)).length },
+    { id:"quotations", label:"Quotations",    icon:"❑", depts:["Sales","Business Development"], count:()=>rows("quotations").filter(q=>["Draft","Sent","Viewed"].includes(quoteStatus(q))).length },
+    { id:"calendar",   label:"Calendar",      icon:"▦" },
+    { id:"activities", label:"Activity log",  icon:"◉" }
   ]},
   { group:"Records", items:[
-    { id:"accounts", label:"Accounts", icon:"▣" },
-    { id:"contacts", label:"Contacts", icon:"◍" }
+    { id:"accounts", label:"Customers", icon:"▣" },
+    { id:"contacts", label:"Contacts",  icon:"◍" }
   ]},
-  { group:"Marketing", items:[
-    { id:"campaigns", label:"Campaigns", icon:"◎" }
+  { group:"Business Development", depts:["Business Development"], items:[
+    { id:"prospects",  label:"Prospects",    icon:"◌" },
+    { id:"partners",   label:"Partnerships", icon:"⬡" },
+    { id:"projects",   label:"Projects & RFQs", icon:"⌗",
+      count:()=>rows("deals").filter(d=>{const n=daysUntil(d.submissionDeadline); return n!==null && n>=0 && n<=14;}).length },
+    { id:"engagement", label:"Engagement",   icon:"◈" },
+    { id:"intel",      label:"Market intel", icon:"◇" },
+    { id:"forecast",   label:"Forecast",     icon:"◭" }
+  ]},
+  { group:"Marketing", depts:["Marketing"], items:[
+    { id:"campaigns", label:"Campaigns", icon:"◎" },
+    { id:"content",   label:"Content",   icon:"✎" },
+    { id:"assets",    label:"Assets",    icon:"▤" }
   ]},
   { group:"Insight", items:[
-    { id:"reports", label:"Reports", icon:"◫" }
+    { id:"performance", label:"Performance", icon:"◭" },
+    { id:"reports",     label:"Reports",     icon:"◫" }
   ]},
   { group:"Administration", admin:true, items:[
     { id:"team",     label:"Team",     icon:"◑" },
@@ -1051,17 +1209,23 @@ const NAV = [
   ]}
 ];
 
+function inDept(x){
+  if (!x.depts) return true;
+  if (isAdmin()) return true;                       // admins see every department
+  return x.depts.includes(state.profile.department);
+}
 function renderNav(){
-  const html = NAV.filter(g=>!g.admin || isAdmin()).map(g=>`
+  const html = NAV.filter(g=>(!g.admin || isAdmin()) && inDept(g))
+    .map(g=>{ const items = g.items.filter(inDept); return !items.length ? "" : `
     <div class="nav-group">${esc(g.group)}</div>
-    ${g.items.map(i=>{
+    ${items.map(i=>{
       const n = i.count ? i.count() : 0;
       return `<button data-go="${i.id}" class="${state.route===i.id?"on":""}">
         <span class="ico">${i.icon}</span>${esc(i.label)}
         ${i.count && n ? `<span class="count">${n}</span>`:""}
       </button>`;
     }).join("")}
-  `).join("");
+  `; }).join("");
   $("#nav").innerHTML = html;
   $("#nav").querySelectorAll("[data-go]").forEach(b=> b.onclick = ()=>{
     setRoute(b.dataset.go);
@@ -1081,7 +1245,10 @@ window.addEventListener("hashchange", ()=>{
 $("#q").addEventListener("input", e=>{ state.search = e.target.value.toLowerCase(); render(); });
 
 const NEW_FOR = { leads:"leads", pipeline:"deals", accounts:"accounts", contacts:"contacts",
-                  activities:"activities", campaigns:"campaigns", dashboard:"activities" };
+                  activities:"activities", campaigns:"campaigns", dashboard:"activities",
+                  quotations:"quotations", tasks:"activities", calendar:"activities",
+                  intel:"intel", content:"content", assets:"assets",
+                  prospects:"accounts", partners:"accounts", projects:"deals", engagement:"activities" };
 $("#new-btn").onclick = ()=>{
   if (state.route === "team")     return openUserForm();
   if (state.route === "settings") return setRoute("team");
@@ -1091,17 +1258,30 @@ $("#new-btn").onclick = ()=>{
 /* ------------------------------------------------------------------ */
 /* 8. RENDER SWITCH                                                    */
 /* ------------------------------------------------------------------ */
-const TITLES = { dashboard:"Dashboard", leads:"Leads", pipeline:"Pipeline", accounts:"Accounts",
-                 contacts:"Contacts", activities:"Activities", campaigns:"Campaigns",
-                 reports:"Reports", team:"Team", settings:"Settings" };
+const TITLES = { dashboard:"Dashboard", leads:"Leads", pipeline:"Opportunities", accounts:"Customers",
+                 contacts:"Contacts", activities:"Activity log", campaigns:"Campaigns",
+                 reports:"Reports", team:"Team", settings:"Settings",
+                 quotations:"Quotations", calendar:"Calendar", tasks:"Tasks", performance:"Performance",
+                 prospects:"Prospect companies", partners:"Partnership management",
+                 projects:"Project opportunities", engagement:"Client engagement",
+                 intel:"Market intelligence", forecast:"Pipeline forecast",
+                 content:"Content plan", assets:"Marketing assets" };
 function render(){
   if(!state.profile) return;
   $("#view-title").textContent = TITLES[state.route] || "Mechatrade";
-  $("#new-btn").classList.toggle("hidden", ["reports","settings"].includes(state.route));
+  $("#new-btn").classList.toggle("hidden", ["reports","settings","forecast"].includes(state.route));
   $("#new-btn").textContent = state.route==="team" ? "Add person" : "New " + (SCHEMAS[NEW_FOR[state.route]]?.label.toLowerCase() || "record");
   const v = $("#view");
   switch(state.route){
     case "dashboard":  v.innerHTML = viewDashboard(); break;
+    case "tasks":      v.innerHTML = viewTasks();     break;
+    case "calendar":   v.innerHTML = viewCalendar();  break;
+    case "performance":v.innerHTML = viewPerformance(); break;
+    case "forecast":   v.innerHTML = viewForecast();    break;
+    case "prospects":
+    case "partners":
+    case "projects":
+    case "engagement": v.innerHTML = viewFiltered(state.route); break;
     case "pipeline":   v.innerHTML = viewPipeline();  break;
     case "reports":    v.innerHTML = viewReports();   break;
     case "team":       v.innerHTML = viewTeam();      break;
@@ -1131,6 +1311,12 @@ function recordTitle(col, id){
 }
 function cell(col,f,d){
   const v = d[f.k];
+  if (f.type === "computed"){
+    if (f.k === "expectedRevenue")
+      return `<span class="mono">${money(Number(d.value||0) * stageProb(d.stage)/100)}</span>`;
+    return "—";
+  }
+  if (f.type === "links") return renderLinks(v);
   if (f.type === "money")  return `<span class="mono">${v?money(v):"—"}</span>`;
   if (f.type === "number") return `<span class="mono">${v??"—"}</span>`;
   if (f.type === "date")   return `<span class="mono" style="font-size:12px">${fmtDate(v)}</span>`;
@@ -1140,6 +1326,21 @@ function cell(col,f,d){
   if (f.type === "select") return pillFor(f.k, v);
   return esc(v ?? "—");
 }
+/* Documents are stored as "Label | https://..." lines — no file hosting
+   needed, which keeps the project on the free plan. */
+function renderLinks(v){
+  const lines = String(v||"").split("\n").map(x=>x.trim()).filter(Boolean);
+  if (!lines.length) return "—";
+  return lines.map(l=>{
+    const i = l.indexOf("|");
+    const label = i>-1 ? l.slice(0,i).trim() : l;
+    const url   = i>-1 ? l.slice(i+1).trim() : l;
+    return /^https?:\/\//.test(url)
+      ? `<a href="${esc(url)}" target="_blank" rel="noopener">${esc(label)}</a>`
+      : esc(label);
+  }).join('<span style="color:var(--faint)"> · </span>');
+}
+
 function pillFor(key,v){
   if(!v) return "—";
   const cls = ({
@@ -1147,6 +1348,12 @@ function pillFor(key,v){
     "New":"info","Contacted":"info","Qualified":"accent","Converted":"accent","Unqualified":"",
     "Won":"accent","Lost":"alert","Proposal Sent":"warn","Negotiation":"warn",
     "Open":"warn","Done":"info","Active":"accent","Planned":"info","Completed":"","Paused":"warn",
+    "Draft":"","Sent":"info","Viewed":"warn","Approved":"accent","Declined":"alert","Expired":"alert",
+    "High":"alert","Medium":"warn","Low":"",
+    "Supplier":"info","Contractor":"info","Consultant":"info","Manufacturer":"info",
+    "RFQ":"warn","Tender / Bidding":"warn","Direct":"","Government":"info","Private":"",
+    "Idea":"","Drafting":"warn","In review":"warn","Scheduled":"info","Published":"accent",
+    "Competitor":"alert","Market trend":"info","Pricing":"warn","Regulation":"info",
     "Client":"accent","Prospect":"info","Partner":"warn"
   })[v] ?? "";
   return `<span class="pill ${cls}">${esc(v)}</span>`;
@@ -1168,6 +1375,13 @@ function ownerOptions(sel){
 /* 10. DASHBOARD                                                       */
 /* ------------------------------------------------------------------ */
 function viewDashboard(){
+  const d = state.profile.department;
+  if (d === "Sales") return viewSalesDashboard();
+  if (d === "Business Development") return viewBDDashboard();
+  if (d === "Marketing") return viewMarketingDashboard();
+  return viewGenericDashboard();
+}
+function viewGenericDashboard(){
   const deals  = rows("deals");
   const open   = deals.filter(d=>OPEN_STAGES.includes(d.stage));
   const openVal= open.reduce((s,d)=>s+Number(d.value||0),0);
@@ -1360,6 +1574,699 @@ function titleOf(col,d){
   if (col==="contacts") return `${d.firstName||""} ${d.lastName||""}`.trim() || "—";
   return d[SCHEMAS[col].titleField] || "—";
 }
+/* ------------------------------------------------------------------ */
+/* 11b. SALES HELPERS                                                  */
+/* ------------------------------------------------------------------ */
+function openTasks(){ return rows("activities").filter(a=>a.status!=="Done" && a.dueDate); }
+function isToday(v){ const d=toDate(v); if(!d) return false;
+  const n=new Date(); return d.toDateString() === n.toDateString(); }
+
+/* A quote past its validity reads as Expired without anyone editing it. */
+function quoteStatus(q){
+  if (["Approved","Declined","Expired"].includes(q.status)) return q.status;
+  const n = daysUntil(q.validUntil);
+  return (n !== null && n < 0) ? "Expired" : (q.status || "Draft");
+}
+function wonThisMonth(list){
+  const ms = monthStart();
+  return list.filter(d=>d.stage==="Won" && toDate(d.closedAt||d.updatedAt) >= ms);
+}
+function avgCloseDays(list){
+  const c = list.filter(d=>d.stage==="Won").map(d=>{
+    const a=toDate(d.createdAt), b=toDate(d.closedAt||d.updatedAt);
+    return a&&b ? Math.round((b-a)/DAY) : null;
+  }).filter(n=>n!==null);
+  return c.length ? Math.round(c.reduce((x,y)=>x+y,0)/c.length) : null;
+}
+
+/* ------------------------------------------------------------------ */
+/* 11c. SALES DASHBOARD                                                */
+/* ------------------------------------------------------------------ */
+function viewSalesDashboard(){
+  const deals = rows("deals"), quotes = rows("quotations");
+  const open  = deals.filter(d=>OPEN_STAGES.includes(d.stage));
+  const won   = deals.filter(d=>d.stage==="Won"), lost = deals.filter(d=>d.stage==="Lost");
+  const wonM  = wonThisMonth(deals);
+  const wonMVal = wonM.reduce((s,d)=>s+Number(d.value||0),0);
+  const target  = Number(state.profile.monthlyTarget||0);
+  const pct = target ? Math.round(wonMVal/target*100) : null;
+  const pipeline = open.reduce((s,d)=>s+Number(d.value||0),0);
+  const weighted = open.reduce((s,d)=>s+Number(d.value||0)*stageProb(d.stage)/100,0);
+  const openQ = quotes.filter(q=>["Draft","Sent","Viewed"].includes(quoteStatus(q)));
+  const openQVal = openQ.reduce((s,q)=>s+Number(q.total||0),0);
+  const closed = won.length + lost.length;
+  const convRate = closed ? Math.round(won.length/closed*100) : 0;
+  const cycle = avgCloseDays(deals);
+  const dueToday = openTasks().filter(a=>isToday(a.dueDate));
+  const overdue  = openTasks().filter(a=>daysUntil(a.dueDate) < 0);
+  const stale = open.filter(d=>daysSince(d.stageChangedAt||d.createdAt) > state.settings.staleDays[1])
+                    .sort((a,b)=>daysSince(b.stageChangedAt||b.createdAt)-daysSince(a.stageChangedAt||a.createdAt));
+  const closingSoon = open.filter(d=>{const n=daysUntil(d.expectedCloseDate); return n!==null && n<=30;})
+                          .sort((a,b)=>toDate(a.expectedCloseDate)-toDate(b.expectedCloseDate));
+  const newLeads = rows("leads").filter(l=>l.status==="New");
+
+  return `
+  <div class="kpis">
+    <div class="kpi accent"><div class="lbl">Sales this month</div><div class="val mono">${shortMoney(wonMVal)}</div>
+      <div class="foot">${wonM.length} deal${wonM.length===1?"":"s"} closed</div></div>
+    <div class="kpi ${pct===null?"":pct>=100?"accent":pct>=60?"warn":"bad"}">
+      <div class="lbl">Target vs actual</div>
+      <div class="val">${pct===null?"—":pct+"%"}</div>
+      <div class="foot">${target?`${shortMoney(wonMVal)} of ${shortMoney(target)}`:"No target set"}</div></div>
+    <div class="kpi"><div class="lbl">Pipeline value</div><div class="val mono">${shortMoney(pipeline)}</div>
+      <div class="foot">${shortMoney(weighted)} weighted · ${open.length} open</div></div>
+    <div class="kpi ${openQ.length?"warn":""}"><div class="lbl">Open quotations</div><div class="val">${openQ.length}</div>
+      <div class="foot">${shortMoney(openQVal)} awaiting decision</div></div>
+  </div>
+  <div class="kpis">
+    <div class="kpi"><div class="lbl">Won deals</div><div class="val">${won.length}</div>
+      <div class="foot">${shortMoney(won.reduce((s,d)=>s+Number(d.value||0),0))} lifetime</div></div>
+    <div class="kpi"><div class="lbl">Lost deals</div><div class="val">${lost.length}</div>
+      <div class="foot">${shortMoney(lost.reduce((s,d)=>s+Number(d.value||0),0))} walked away</div></div>
+    <div class="kpi"><div class="lbl">Average closing time</div><div class="val">${cycle??"—"}${cycle?`<span style="font-size:15px"> days</span>`:""}</div>
+      <div class="foot">first contact to won</div></div>
+    <div class="kpi"><div class="lbl">Conversion rate</div><div class="val">${convRate}<span style="font-size:16px">%</span></div>
+      <div class="foot">${won.length} won of ${closed} closed</div></div>
+    <div class="kpi ${dueToday.length||overdue.length?"bad":""}"><div class="lbl">Follow-ups due today</div>
+      <div class="val">${dueToday.length}</div>
+      <div class="foot">${overdue.length} already overdue</div></div>
+  </div>
+
+  ${target ? `<div class="card" style="margin-bottom:14px">
+    <div class="card-h"><h3>Target progress</h3><div class="spacer"></div>
+      <span class="mono" style="font-size:12px;color:var(--muted)">${money(wonMVal)} of ${money(target)}</span></div>
+    <div class="bars"><div class="bar-row">
+      <div class="nm">${new Date().toLocaleDateString(undefined,{month:"long"})}</div>
+      <div class="bar-track"><div class="bar-fill ${pct>=100?"":pct>=60?"warn":"alert"}" style="width:${Math.min(pct,100)}%"></div></div>
+      <div class="fig">${pct}%</div>
+    </div></div>
+  </div>`:""}
+
+  <div class="grid" style="grid-template-columns:1fr 1fr">
+    <div class="card">
+      <div class="card-h"><h3>Due today</h3><div class="spacer"></div>
+        <button class="btn sm" data-go="tasks">All tasks</button></div>
+      ${[...overdue,...dueToday].length ? `<div class="tbl-wrap"><table><tbody>
+        ${[...overdue,...dueToday].slice(0,7).map(a=>{
+          const n = daysUntil(a.dueDate);
+          return `<tr>
+            <td style="width:26px"><input type="checkbox" data-done="${a.id}" title="Mark done"></td>
+            <td><span class="lnk" data-open="activities:${a.id}">${esc(a.subject)}</span>
+              <div style="font-size:11.5px;color:var(--muted)">${esc(a.type)} · ${esc(refLabel("dynamic",a.relatedId,a))}</div></td>
+            <td class="num"><span class="pill ${n<0?"alert":"warn"}">${n<0?`${Math.abs(n)}d late`:"Today"}</span></td>
+          </tr>`;
+        }).join("")}</tbody></table></div>`
+        : `<div class="empty"><strong>Clear</strong>Nothing is due today.</div>`}
+    </div>
+
+    <div class="card">
+      <div class="card-h"><h3>Closing within 30 days</h3><div class="spacer"></div>
+        <button class="btn sm" data-go="pipeline">Pipeline</button></div>
+      ${closingSoon.length ? `<div class="tbl-wrap"><table><tbody>
+        ${closingSoon.slice(0,7).map(d=>`<tr>
+          <td><span class="lnk" data-open="deals:${d.id}">${esc(d.title)}</span>
+            <div style="font-size:11.5px;color:var(--muted)">${esc(recordTitle("accounts",d.accountId))} · ${esc(d.stage)}</div></td>
+          <td class="num">${money(d.value)}</td>
+          <td class="num mono" style="font-size:12px">${fmtDate(d.expectedCloseDate)}</td>
+        </tr>`).join("")}</tbody></table></div>`
+        : `<div class="empty"><strong>Nothing imminent</strong>No open deal is due to close this month.</div>`}
+    </div>
+  </div>
+
+  <div class="grid" style="grid-template-columns:1fr 1fr;margin-top:14px">
+    <div class="card">
+      <div class="card-h"><h3>New leads to work</h3><div class="spacer"></div>
+        <button class="btn sm" data-go="leads">All leads</button></div>
+      ${newLeads.length ? `<div class="tbl-wrap"><table><tbody>
+        ${newLeads.slice(0,7).map(l=>`<tr>
+          <td><span class="lnk" data-open="leads:${l.id}">${esc(l.company)}</span>
+            <div style="font-size:11.5px;color:var(--muted)">${esc(l.contactName||"")}${l.source?" · "+esc(l.source):""}</div></td>
+          <td class="num">${l.estValue?money(l.estValue):"—"}</td>
+          <td class="num">${pillFor("rating",l.rating)}</td>
+        </tr>`).join("")}</tbody></table></div>`
+        : `<div class="empty"><strong>No new leads</strong>Everything assigned to you has been contacted.</div>`}
+    </div>
+
+    <div class="card">
+      <div class="card-h"><h3>Deals going cold</h3><div class="spacer"></div>
+        <span class="eyebrow">no movement ${state.settings.staleDays[1]}d+</span></div>
+      ${stale.length ? `<div class="tbl-wrap"><table><tbody>
+        ${stale.slice(0,7).map(d=>`<tr>
+          <td><span class="lnk" data-open="deals:${d.id}">${esc(d.title)}</span>
+            <div style="font-size:11.5px;color:var(--muted)">${esc(recordTitle("accounts",d.accountId))} · ${esc(d.stage)}</div></td>
+          <td class="num">${money(d.value)}</td>
+          <td class="num"><span class="pill alert">${daysSince(d.stageChangedAt||d.createdAt)}d</span></td>
+        </tr>`).join("")}</tbody></table></div>`
+        : `<div class="empty"><strong>Pipeline is moving</strong>No open deal has been sitting still.</div>`}
+    </div>
+  </div>
+
+  ${isManager() ? teamSnapshot() : ""}`;
+}
+
+/* ------------------------------------------------------------------ */
+/* 11d. TASKS                                                          */
+/* ------------------------------------------------------------------ */
+function viewTasks(){
+  const f = state.filters.tasks || (state.filters.tasks = { tab:"today" });
+  const all = rows("activities").filter(a=>matches(a,"activities"));
+  const openA = all.filter(a=>a.status!=="Done");
+  const buckets = {
+    today:    openA.filter(a=>isToday(a.dueDate)),
+    overdue:  openA.filter(a=>{const n=daysUntil(a.dueDate); return n!==null && n<0;}),
+    upcoming: openA.filter(a=>{const n=daysUntil(a.dueDate); return n!==null && n>0;})
+                   .sort((a,b)=>toDate(a.dueDate)-toDate(b.dueDate)),
+    unscheduled: openA.filter(a=>!a.dueDate),
+    done:     all.filter(a=>a.status==="Done").sort((a,b)=>toDate(b.updatedAt)-toDate(a.updatedAt)).slice(0,50)
+  };
+  const tabs = [["overdue","Overdue"],["today","Today"],["upcoming","Upcoming"],["unscheduled","No date"],["done","Completed"]];
+  const list = buckets[f.tab] || [];
+  return `
+  <div class="toolbar">
+    ${tabs.map(([k,l])=>`<button class="btn ${f.tab===k?"pri":""}" data-tab="${k}">${l}
+      ${buckets[k].length?`<span class="mono" style="opacity:.7"> ${buckets[k].length}</span>`:""}</button>`).join("")}
+  </div>
+  <div class="card">
+    ${list.length ? `<div class="tbl-wrap"><table>
+      <thead><tr><th style="width:30px"></th><th>Task</th><th>Type</th><th>Related to</th><th>Due</th>
+        ${isManager()?"<th>Owner</th>":""}<th></th></tr></thead>
+      <tbody>${list.map(a=>{
+        const n = daysUntil(a.dueDate);
+        const late = n!==null && n<0;
+        return `<tr>
+          <td>${a.status==="Done"?`<span class="pill accent">✓</span>`:`<input type="checkbox" data-done="${a.id}" title="Mark done">`}</td>
+          <td><span class="lnk" data-open="activities:${a.id}">${esc(a.subject)}</span></td>
+          <td>${pillFor("type",a.type)}</td>
+          <td style="font-size:12.5px">${esc(refLabel("dynamic",a.relatedId,a))}</td>
+          <td class="mono" style="font-size:12px">${fmtDate(a.dueDate)}
+            ${late?` <span class="pill alert">${Math.abs(n)}d</span>`:""}</td>
+          ${isManager()?`<td style="font-size:12.5px">${esc(userName(a.ownerId))}</td>`:""}
+          <td class="row-act"><button class="btn sm" data-edit="activities:${a.id}">Edit</button></td>
+        </tr>`;
+      }).join("")}</tbody></table></div>`
+      : `<div class="empty"><strong>Nothing here</strong>${
+          f.tab==="overdue" ? "You're on top of everything." : "No tasks in this bucket."}</div>`}
+  </div>`;
+}
+
+/* ------------------------------------------------------------------ */
+/* 11e. CALENDAR                                                       */
+/* ------------------------------------------------------------------ */
+const TYPE_TONE = { "Meeting":"accent", "Site Visit":"warn", "Call":"info", "Demo":"accent",
+  "Presentation":"accent", "MOU / Agreement":"info", "Content":"warn", "Email":"", "Task":"" };
+function viewCalendar(){
+  const f = state.filters.calendar || (state.filters.calendar = { offset:0, day:null });
+  const base = new Date(); base.setDate(1); base.setMonth(base.getMonth() + f.offset);
+  const year = base.getFullYear(), month = base.getMonth();
+  const first = new Date(year, month, 1), last = new Date(year, month+1, 0);
+  const startPad = first.getDay();
+  const acts = rows("activities").filter(a=>a.dueDate).map(a=>({...a, _c:"activities"}))
+    .concat(rows("content").filter(c=>c.publishDate)
+      .map(c=>({ ...c, _c:"content", dueDate:c.publishDate, subject:c.title, type:"Content" })));
+  const byDay = new Map();
+  acts.forEach(a=>{
+    const d = toDate(a.dueDate); if(!d) return;
+    if (d.getFullYear()===year && d.getMonth()===month){
+      const k = d.getDate();
+      byDay.set(k, [...(byDay.get(k)||[]), a]);
+    }
+  });
+  const cells = [];
+  for (let i=0;i<startPad;i++) cells.push(null);
+  for (let d=1; d<=last.getDate(); d++) cells.push(d);
+  const today = new Date();
+  const isThisMonth = today.getFullYear()===year && today.getMonth()===month;
+  const selected = f.day && byDay.get(f.day) ? byDay.get(f.day) : null;
+
+  return `
+  <div class="toolbar">
+    <button class="btn" data-cal="-1">‹</button>
+    <button class="btn" data-cal="0">Today</button>
+    <button class="btn" data-cal="1">›</button>
+    <strong style="font-family:var(--display);font-size:18px;margin-left:6px">
+      ${base.toLocaleDateString(undefined,{month:"long", year:"numeric"})}</strong>
+    <div style="flex:1"></div>
+    <span class="legend" style="margin:0">
+      <span><i style="background:var(--accent)"></i>Meeting</span>
+      <span><i style="background:var(--warn)"></i>Site visit</span>
+      <span><i style="background:var(--info)"></i>Call</span>
+    </span>
+  </div>
+  <div class="card" style="padding:12px">
+    <div class="cal">
+      ${["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map(d=>`<div class="cal-h">${d}</div>`).join("")}
+      ${cells.map(d=>{
+        if (d===null) return `<div class="cal-cell empty-cell"></div>`;
+        const items = byDay.get(d) || [];
+        const isNow = isThisMonth && today.getDate()===d;
+        return `<div class="cal-cell${isNow?" now":""}${f.day===d?" sel":""}" data-day="${d}">
+          <div class="cal-n">${d}</div>
+          ${items.slice(0,3).map(a=>`<div class="cal-ev ${TYPE_TONE[a.type]||""}${["Done","Published"].includes(a.status)?" done":""}"
+            title="${esc(a.subject)}">${esc(a.subject)}</div>`).join("")}
+          ${items.length>3?`<div class="cal-more">+${items.length-3} more</div>`:""}
+        </div>`;
+      }).join("")}
+    </div>
+  </div>
+  ${selected ? `<div class="card" style="margin-top:14px">
+    <div class="card-h"><h3>${new Date(year,month,f.day).toLocaleDateString(undefined,{weekday:"long", day:"numeric", month:"long"})}</h3>
+      <div class="spacer"></div><span class="eyebrow">${selected.length} item${selected.length===1?"":"s"}</span></div>
+    <div class="tbl-wrap"><table><tbody>
+      ${selected.map(a=>`<tr>
+        <td>${pillFor("type",a.type)}</td>
+        <td><span class="lnk" data-open="${a._c||"activities"}:${a.id}">${esc(a.subject)}</span>
+          <div style="font-size:11.5px;color:var(--muted)">${esc(refLabel("dynamic",a.relatedId,a))}</div></td>
+        ${isManager()?`<td style="font-size:12.5px">${esc(userName(a.ownerId))}</td>`:""}
+        <td class="row-act">${a._c==="content" ? pillFor("status",a.status)
+          : a.status==="Done" ? `<span class="pill accent">Done</span>`
+          : `<button class="btn sm" data-donebtn="${a.id}">Done</button>`}</td>
+      </tr>`).join("")}
+    </tbody></table></div>
+  </div>` : ""}`;
+}
+
+/* ------------------------------------------------------------------ */
+/* 11f. PERFORMANCE                                                    */
+/*   Rankings read from the lightweight stats documents, so a rep can  */
+/*   see where they stand without being able to read anyone's deals.   */
+/* ------------------------------------------------------------------ */
+function viewPerformance(){
+  const deals = rows("deals");
+  const wonM = wonThisMonth(deals);
+  const mine = wonM.reduce((s,d)=>s+Number(d.value||0),0);
+  const target = Number(state.profile.monthlyTarget||0);
+  const rate = Number(state.profile.commissionRate||0);
+  const pct = target ? Math.round(mine/target*100) : null;
+  const commission = mine * rate/100;
+
+  const month = new Date().toISOString().slice(0,7);
+  const board = Array.from(state.stats.values())
+    .filter(x=>x.month===month && (x.department===state.profile.department || isAdmin()))
+    .sort((a,b)=>Number(b.won||0)-Number(a.won||0));
+  const myRank = board.findIndex(x=>x.id===myUid()) + 1;
+  const bmax = Math.max(...board.map(x=>Number(x.won||0)), 1);
+
+  // last six months of my own closed-won
+  const hist = [];
+  for (let i=5;i>=0;i--){
+    const d = new Date(); d.setDate(1); d.setMonth(d.getMonth()-i);
+    const from = new Date(d.getFullYear(), d.getMonth(), 1);
+    const to   = new Date(d.getFullYear(), d.getMonth()+1, 1);
+    const v = deals.filter(x=>x.stage==="Won" && toDate(x.closedAt||x.updatedAt)>=from && toDate(x.closedAt||x.updatedAt)<to)
+                   .reduce((s,x)=>s+Number(x.value||0),0);
+    hist.push({ label:d.toLocaleDateString(undefined,{month:"short"}), v });
+  }
+  const hmax = Math.max(...hist.map(h=>h.v), 1);
+
+  return `
+  <div class="kpis">
+    <div class="kpi accent"><div class="lbl">Won this month</div><div class="val mono">${shortMoney(mine)}</div>
+      <div class="foot">${wonM.length} deal${wonM.length===1?"":"s"}</div></div>
+    <div class="kpi ${pct===null?"":pct>=100?"accent":pct>=60?"warn":"bad"}">
+      <div class="lbl">Target achievement</div><div class="val">${pct===null?"—":pct+"%"}</div>
+      <div class="foot">${target?`of ${shortMoney(target)}`:"No target set"}</div></div>
+    <div class="kpi"><div class="lbl">Monthly commission</div><div class="val mono">${rate?shortMoney(commission):"—"}</div>
+      <div class="foot">${rate?`${rate}% of won revenue`:"No rate set — ask your admin"}</div></div>
+    <div class="kpi"><div class="lbl">Ranking</div><div class="val">${myRank?`#${myRank}`:"—"}</div>
+      <div class="foot">${board.length?`of ${board.length} in ${esc(state.profile.department)}`:"Nobody ranked yet"}</div></div>
+  </div>
+
+  <div class="grid" style="grid-template-columns:1fr 1fr">
+    <div class="card">
+      <div class="card-h"><h3>Ranking this month</h3><div class="spacer"></div>
+        <span class="eyebrow">closed won</span></div>
+      ${board.length ? `<div class="tbl-wrap"><table>
+        <thead><tr><th style="width:44px">#</th><th>Person</th><th style="text-align:right">Won</th><th style="text-align:right">Target</th></tr></thead>
+        <tbody>${board.map((x,i)=>`<tr${x.id===myUid()?' style="background:var(--accent-weak)"':""}>
+          <td class="mono">${i+1}</td>
+          <td>${esc(x.displayName||"—")}${x.id===myUid()?' <span class="pill accent">You</span>':""}</td>
+          <td class="num">${money(x.won||0)}</td>
+          <td class="num">${x.target?`${Math.round((x.won||0)/x.target*100)}%`:"—"}</td>
+        </tr>`).join("")}</tbody></table></div>`
+        : `<div class="empty"><strong>No rankings yet</strong>Numbers appear once your teammates sign in and close deals.</div>`}
+    </div>
+
+    <div class="card">
+      <div class="card-h"><h3>My last six months</h3></div>
+      <div class="bars">
+        ${hist.map(h=>`<div class="bar-row">
+          <div class="nm">${esc(h.label)}</div>
+          <div class="bar-track"><div class="bar-fill" style="width:${h.v/hmax*100}%"></div></div>
+          <div class="fig">${shortMoney(h.v)}</div>
+        </div>`).join("")}
+      </div>
+    </div>
+  </div>`;
+}
+
+/* ------------------------------------------------------------------ */
+/* 11g. TABBED, PRE-FILTERED LISTS                                     */
+/*   Prospects, Partnerships, Project opportunities and Client         */
+/*   engagement are all slices of records you already have.            */
+/* ------------------------------------------------------------------ */
+const PARTNER_TYPES = ["Supplier","Contractor","Consultant","Manufacturer","Partner"];
+const FILTERED = {
+  prospects: { col:"accounts", tabs:[
+    ["all",    "All prospects", d=>d.type==="Prospect"],
+    ["high",   "High priority", d=>d.type==="Prospect" && d.priority==="High"],
+    ["large",  "Large companies", d=>d.type==="Prospect" && ["201–500","500+"].includes(d.companySize)],
+    ["clients","Converted to client", d=>d.type==="Client"]
+  ]},
+  partners: { col:"accounts", tabs:[
+    ["all",         "All partners",  d=>PARTNER_TYPES.includes(d.type)],
+    ["supplier",    "Suppliers",     d=>d.type==="Supplier"],
+    ["contractor",  "Contractors",   d=>d.type==="Contractor"],
+    ["consultant",  "Consultants",   d=>d.type==="Consultant"],
+    ["manufacturer","Manufacturers", d=>d.type==="Manufacturer"]
+  ]},
+  projects: { col:"deals", tabs:[
+    ["rfq",     "RFQs",              d=>d.opportunityType==="RFQ"],
+    ["bidding", "Bidding",           d=>d.opportunityType==="Tender / Bidding"],
+    ["gov",     "Government",        d=>d.sector==="Government"],
+    ["private", "Private",           d=>d.sector==="Private"],
+    ["due",     "Deadline this month", d=>{const n=daysUntil(d.submissionDeadline); return n!==null && n>=0 && n<=31;}]
+  ]},
+  engagement: { col:"activities", tabs:[
+    ["meeting",     "Meetings",      a=>a.type==="Meeting"],
+    ["visit",       "Site visits",   a=>a.type==="Site Visit"],
+    ["presentation","Presentations", a=>a.type==="Presentation"],
+    ["mou",         "MOUs & agreements", a=>a.type==="MOU / Agreement"]
+  ]}
+};
+
+function viewFiltered(routeKey){
+  const cfg = FILTERED[routeKey], col = cfg.col, S = SCHEMAS[col];
+  const f = state.filters[routeKey] || (state.filters[routeKey] = { tab: cfg.tabs[0][0] });
+  const tab = cfg.tabs.find(t=>t[0]===f.tab) || cfg.tabs[0];
+  const list = rows(col).filter(d=>matches(d,col)).filter(tab[2])
+    .sort((a,b)=>toDate(b.updatedAt)-toDate(a.updatedAt));
+  const cols = S.fields.filter(x=>x.table);
+  return `
+  <div class="toolbar">
+    ${cfg.tabs.map(([k,l,fn])=>{
+      const n = rows(col).filter(fn).length;
+      return `<button class="btn ${f.tab===k?"pri":""}" data-ftab="${routeKey}:${k}">${esc(l)}
+        ${n?`<span class="mono" style="opacity:.7"> ${n}</span>`:""}</button>`;
+    }).join("")}
+    <div style="flex:1"></div>
+    <button class="btn" data-newrec="${col}">New ${esc(S.label.toLowerCase())}</button>
+  </div>
+  <div class="card">${list.length ? `<div class="tbl-wrap"><table>
+    <thead><tr>${cols.map(c=>`<th>${esc(c.l)}</th>`).join("")}<th></th></tr></thead>
+    <tbody>${list.map(d=>`<tr>
+      ${cols.map((c,i)=>`<td class="${["money","number"].includes(c.type)?"num":""}">${
+        i===0 ? `<span class="lnk" data-open="${col}:${d.id}">${esc(titleOf(col,d))}</span>` : cell(col,c,d)}</td>`).join("")}
+      <td class="row-act"><button class="btn sm" data-edit="${col}:${d.id}">Edit</button></td>
+    </tr>`).join("")}</tbody></table></div>`
+    : `<div class="empty"><strong>Nothing in ${esc(tab[1].toLowerCase())}</strong>
+        Records appear here once they're tagged accordingly.</div>`}</div>`;
+}
+
+/* ------------------------------------------------------------------ */
+/* 11h. BUSINESS DEVELOPMENT DASHBOARD                                 */
+/* ------------------------------------------------------------------ */
+function viewBDDashboard(){
+  const accts = rows("accounts"), deals = rows("deals"), acts = rows("activities");
+  const ms = monthStart();
+  const partners = accts.filter(a=>PARTNER_TYPES.includes(a.type));
+  const newPartners = partners.filter(a=>toDate(a.createdAt) >= ms);
+  const negotiating = deals.filter(d=>d.stage==="Negotiation");
+  const tenders = deals.filter(d=>["RFQ","Tender / Bidding"].includes(d.opportunityType) && OPEN_STAGES.includes(d.stage));
+  const newClients = accts.filter(a=>a.type==="Client" && toDate(a.createdAt) >= ms);
+  const open = deals.filter(d=>OPEN_STAGES.includes(d.stage));
+  const forecast = open.reduce((s,d)=>s+Number(d.value||0)*stageProb(d.stage)/100,0);
+  const meetings = acts.filter(a=>a.status!=="Done" && ["Meeting","Presentation","Site Visit"].includes(a.type)
+    && daysUntil(a.dueDate) !== null && daysUntil(a.dueDate) >= 0)
+    .sort((a,b)=>toDate(a.dueDate)-toDate(b.dueDate));
+  const prospects = accts.filter(a=>a.type==="Prospect");
+  const hotProspects = prospects.filter(a=>a.priority==="High");
+  const deadlines = deals.filter(d=>{const n=daysUntil(d.submissionDeadline); return n!==null && n>=0;})
+    .sort((a,b)=>toDate(a.submissionDeadline)-toDate(b.submissionDeadline));
+
+  return `
+  <div class="kpis">
+    <div class="kpi accent"><div class="lbl">New partners</div><div class="val">${newPartners.length}</div>
+      <div class="foot">this month</div></div>
+    <div class="kpi"><div class="lbl">Active partnerships</div><div class="val">${partners.length}</div>
+      <div class="foot">${PARTNER_TYPES.map(t=>`${accts.filter(a=>a.type===t).length} ${t.toLowerCase()}s`).slice(0,2).join(" · ")}</div></div>
+    <div class="kpi warn"><div class="lbl">Under negotiation</div><div class="val">${negotiating.length}</div>
+      <div class="foot">${shortMoney(negotiating.reduce((s,d)=>s+Number(d.value||0),0))} in play</div></div>
+    <div class="kpi"><div class="lbl">Tender opportunities</div><div class="val">${tenders.length}</div>
+      <div class="foot">${shortMoney(tenders.reduce((s,d)=>s+Number(d.value||0),0))} bid value</div></div>
+  </div>
+  <div class="kpis">
+    <div class="kpi"><div class="lbl">Corporate accounts acquired</div><div class="val">${newClients.length}</div>
+      <div class="foot">converted to client this month</div></div>
+    <div class="kpi accent"><div class="lbl">Revenue forecast</div><div class="val mono">${shortMoney(forecast)}</div>
+      <div class="foot">weighted across ${open.length} open</div></div>
+    <div class="kpi"><div class="lbl">Meetings scheduled</div><div class="val">${meetings.length}</div>
+      <div class="foot">${meetings.length?`next ${fmtDate(meetings[0].dueDate)}`:"nothing booked"}</div></div>
+    <div class="kpi ${hotProspects.length?"warn":""}"><div class="lbl">High-priority prospects</div>
+      <div class="val">${hotProspects.length}</div><div class="foot">of ${prospects.length} tracked</div></div>
+  </div>
+
+  <div class="grid" style="grid-template-columns:1fr 1fr">
+    <div class="card">
+      <div class="card-h"><h3>Submission deadlines</h3><div class="spacer"></div>
+        <button class="btn sm" data-go="projects">All projects</button></div>
+      ${deadlines.length ? `<div class="tbl-wrap"><table><tbody>
+        ${deadlines.slice(0,7).map(d=>{
+          const n = daysUntil(d.submissionDeadline);
+          return `<tr>
+            <td><span class="lnk" data-open="deals:${d.id}">${esc(d.title)}</span>
+              <div style="font-size:11.5px;color:var(--muted)">${esc(d.tenderRef||d.opportunityType||"")} · ${esc(d.sector||"")}</div></td>
+            <td class="num">${money(d.value)}</td>
+            <td class="num"><span class="pill ${n<=7?"alert":n<=21?"warn":""}">${n}d</span></td>
+          </tr>`;
+        }).join("")}</tbody></table></div>`
+        : `<div class="empty"><strong>No deadlines</strong>Set a submission deadline on RFQ and tender opportunities.</div>`}
+    </div>
+
+    <div class="card">
+      <div class="card-h"><h3>Upcoming engagements</h3><div class="spacer"></div>
+        <button class="btn sm" data-go="engagement">Engagement log</button></div>
+      ${meetings.length ? `<div class="tbl-wrap"><table><tbody>
+        ${meetings.slice(0,7).map(a=>`<tr>
+          <td>${pillFor("type",a.type)}</td>
+          <td><span class="lnk" data-open="activities:${a.id}">${esc(a.subject)}</span>
+            <div style="font-size:11.5px;color:var(--muted)">${esc(refLabel("dynamic",a.relatedId,a))}</div></td>
+          <td class="num mono" style="font-size:12px">${fmtDate(a.dueDate)}</td>
+        </tr>`).join("")}</tbody></table></div>`
+        : `<div class="empty"><strong>Nothing booked</strong>No meetings, presentations or site visits ahead.</div>`}
+    </div>
+  </div>
+
+  <div class="grid" style="grid-template-columns:1fr 1fr;margin-top:14px">
+    <div class="card">
+      <div class="card-h"><h3>Priority prospects</h3><div class="spacer"></div>
+        <button class="btn sm" data-go="prospects">All prospects</button></div>
+      ${hotProspects.length ? `<div class="tbl-wrap"><table><tbody>
+        ${hotProspects.slice(0,7).map(a=>`<tr>
+          <td><span class="lnk" data-open="accounts:${a.id}">${esc(a.name)}</span>
+            <div style="font-size:11.5px;color:var(--muted)">${esc(a.industry||"")}${a.companySize?" · "+esc(a.companySize):""}</div></td>
+          <td class="num">${esc(a.city||"")}</td>
+        </tr>`).join("")}</tbody></table></div>`
+        : `<div class="empty"><strong>No priority prospects</strong>Mark a prospect High to surface it here.</div>`}
+    </div>
+    <div class="card">
+      <div class="card-h"><h3>Partnerships by type</h3><div class="spacer"></div>
+        <button class="btn sm" data-go="partners">Manage</button></div>
+      <div class="bars">
+        ${PARTNER_TYPES.map(t=>{
+          const n = accts.filter(a=>a.type===t).length;
+          const mx = Math.max(...PARTNER_TYPES.map(x=>accts.filter(a=>a.type===x).length), 1);
+          return `<div class="bar-row"><div class="nm">${esc(t)}</div>
+            <div class="bar-track"><div class="bar-fill info" style="width:${n/mx*100}%"></div></div>
+            <div class="fig">${n}</div></div>`;
+        }).join("")}
+      </div>
+    </div>
+  </div>`;
+}
+
+/* ------------------------------------------------------------------ */
+/* 11i. PIPELINE FORECAST                                              */
+/* ------------------------------------------------------------------ */
+function viewForecast(){
+  const open = rows("deals").filter(d=>OPEN_STAGES.includes(d.stage));
+  const months = [];
+  for (let i=0;i<6;i++){
+    const d = new Date(); d.setDate(1); d.setMonth(d.getMonth()+i);
+    const from = new Date(d.getFullYear(), d.getMonth(), 1);
+    const to = new Date(d.getFullYear(), d.getMonth()+1, 1);
+    const inM = open.filter(x=>{const c=toDate(x.expectedCloseDate); return c && c>=from && c<to;});
+    months.push({
+      label: d.toLocaleDateString(undefined,{month:"short", year:"2-digit"}),
+      gross: inM.reduce((s,x)=>s+Number(x.value||0),0),
+      weighted: inM.reduce((s,x)=>s+Number(x.value||0)*stageProb(x.stage)/100,0),
+      n: inM.length
+    });
+  }
+  const mx = Math.max(...months.map(m=>m.gross), 1);
+  const undated = open.filter(d=>!d.expectedCloseDate);
+  const ranked = [...open].sort((a,b)=>
+    (Number(b.value||0)*stageProb(b.stage)) - (Number(a.value||0)*stageProb(a.stage)));
+
+  return `
+  <div class="kpis">
+    <div class="kpi accent"><div class="lbl">Weighted forecast</div>
+      <div class="val mono">${shortMoney(months.reduce((s,m)=>s+m.weighted,0))}</div>
+      <div class="foot">next six months</div></div>
+    <div class="kpi"><div class="lbl">Gross pipeline</div>
+      <div class="val mono">${shortMoney(open.reduce((s,d)=>s+Number(d.value||0),0))}</div>
+      <div class="foot">${open.length} open opportunities</div></div>
+    <div class="kpi ${undated.length?"warn":""}"><div class="lbl">No close date</div>
+      <div class="val">${undated.length}</div><div class="foot">excluded from the forecast</div></div>
+  </div>
+
+  <div class="card">
+    <div class="card-h"><h3>Forecast by month</h3><div class="spacer"></div>
+      <span class="eyebrow">gross bar · weighted figure</span></div>
+    <div class="bars">
+      ${months.map(m=>`<div class="bar-row">
+        <div class="nm">${esc(m.label)} <span class="mono" style="color:var(--faint);font-size:11px">${m.n}</span></div>
+        <div>
+          <div class="bar-track" style="margin-bottom:3px"><div class="bar-fill ink" style="width:${m.gross/mx*100}%"></div></div>
+          <div class="bar-track"><div class="bar-fill" style="width:${m.weighted/mx*100}%"></div></div>
+        </div>
+        <div class="fig">${shortMoney(m.weighted)}</div>
+      </div>`).join("")}
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:14px">
+    <div class="card-h"><h3>Opportunities by expected value</h3></div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>Opportunity</th><th>Customer</th><th>Stage</th>
+        <th style="text-align:right">Value</th><th style="text-align:right">Probability</th>
+        <th style="text-align:right">Expected</th><th style="text-align:right">Close</th></tr></thead>
+      <tbody>${ranked.length ? ranked.slice(0,20).map(d=>`<tr>
+        <td><span class="lnk" data-open="deals:${d.id}">${esc(d.title)}</span></td>
+        <td style="font-size:12.5px">${esc(recordTitle("accounts",d.accountId))}</td>
+        <td>${pillFor("stage",d.stage)}</td>
+        <td class="num">${money(d.value)}</td>
+        <td class="num">${stageProb(d.stage)}%</td>
+        <td class="num">${money(Number(d.value||0)*stageProb(d.stage)/100)}</td>
+        <td class="num mono" style="font-size:12px">${fmtDate(d.expectedCloseDate)}</td>
+      </tr>`).join("") : `<tr><td colspan="7" class="empty">No open opportunities.</td></tr>`}</tbody>
+    </table></div>
+  </div>`;
+}
+
+/* ------------------------------------------------------------------ */
+/* 11j. MARKETING DASHBOARD                                            */
+/*   Website, social and email figures come from what Marketing keys   */
+/*   into each campaign — no paid API integration needed.              */
+/* ------------------------------------------------------------------ */
+function viewMarketingDashboard(){
+  const camps = rows("campaigns"), leads = rows("leads"), deals = rows("deals");
+  const ms = monthStart();
+  const sum = k => camps.reduce((s,c)=>s+Number(c[k]||0),0);
+  const leadsM = leads.filter(l=>toDate(l.createdAt) >= ms);
+  const qualified = leads.filter(l=>["Qualified","Converted"].includes(l.status));
+  const converted = leads.filter(l=>l.status==="Converted");
+  const convRate = leads.length ? Math.round(converted.length/leads.length*100) : 0;
+  const spend = sum("spend") || sum("budget");
+  const cpl = leads.length ? spend/leads.length : 0;
+  const attributed = deals.filter(d=>d.campaignId && d.stage==="Won");
+  const revenue = attributed.reduce((s,d)=>s+Number(d.value||0),0);
+  const roi = spend ? Math.round((revenue-spend)/spend*100) : null;
+  const sent = sum("emailsSent"), opened = sum("emailsOpened");
+  const openRate = sent ? Math.round(opened/sent*100) : null;
+  const active = camps.filter(c=>c.status==="Active");
+  const waiting = leads.filter(l=>l.status==="New");
+  const contentDue = rows("content").filter(c=>c.status!=="Published" && c.publishDate)
+    .sort((a,b)=>toDate(a.publishDate)-toDate(b.publishDate));
+
+  const srcs = new Map();
+  leads.forEach(l=>{ const k=l.source||"Unspecified"; srcs.set(k,(srcs.get(k)||0)+1); });
+  const srcList = Array.from(srcs.entries()).sort((a,b)=>b[1]-a[1]);
+  const smax = Math.max(...srcList.map(x=>x[1]), 1);
+
+  return `
+  <div class="kpis">
+    <div class="kpi accent"><div class="lbl">Leads generated</div><div class="val">${leadsM.length}</div>
+      <div class="foot">${leads.length} all time</div></div>
+    <div class="kpi"><div class="lbl">Qualified leads</div><div class="val">${qualified.length}</div>
+      <div class="foot">${leads.length?Math.round(qualified.length/leads.length*100):0}% of all leads</div></div>
+    <div class="kpi"><div class="lbl">Conversion rate</div><div class="val">${convRate}<span style="font-size:16px">%</span></div>
+      <div class="foot">${converted.length} became opportunities</div></div>
+    <div class="kpi"><div class="lbl">Cost per lead</div><div class="val mono">${cpl?shortMoney(cpl):"—"}</div>
+      <div class="foot">${spend?`${shortMoney(spend)} spent`:"No spend recorded"}</div></div>
+  </div>
+  <div class="kpis">
+    <div class="kpi ${roi!==null&&roi>=0?"accent":roi!==null?"bad":""}"><div class="lbl">Campaign ROI</div>
+      <div class="val">${roi===null?"—":roi+"%"}</div>
+      <div class="foot">${shortMoney(revenue)} attributed revenue</div></div>
+    <div class="kpi"><div class="lbl">Ad spend</div><div class="val mono">${shortMoney(sum("spend"))}</div>
+      <div class="foot">of ${shortMoney(sum("budget"))} budgeted</div></div>
+    <div class="kpi"><div class="lbl">Website visitors</div><div class="val mono">${sum("visitors").toLocaleString()}</div>
+      <div class="foot">${sum("clicks").toLocaleString()} ad clicks</div></div>
+    <div class="kpi"><div class="lbl">Social engagement</div><div class="val mono">${sum("engagements").toLocaleString()}</div>
+      <div class="foot">${sum("impressions").toLocaleString()} impressions</div></div>
+    <div class="kpi"><div class="lbl">Email open rate</div><div class="val">${openRate===null?"—":openRate+"%"}</div>
+      <div class="foot">${opened.toLocaleString()} of ${sent.toLocaleString()} opened</div></div>
+  </div>
+
+  <div class="grid" style="grid-template-columns:1fr 1fr">
+    <div class="card">
+      <div class="card-h"><h3>Active campaigns</h3><div class="spacer"></div>
+        <button class="btn sm" data-go="campaigns">All campaigns</button></div>
+      ${active.length ? `<div class="tbl-wrap"><table><tbody>
+        ${active.slice(0,7).map(c=>{
+          const cl = leads.filter(l=>l.campaignId===c.id).length;
+          const pct = c.targetLeads ? Math.round(cl/c.targetLeads*100) : null;
+          return `<tr>
+            <td><span class="lnk" data-open="campaigns:${c.id}">${esc(c.name)}</span>
+              <div style="font-size:11.5px;color:var(--muted)">${esc(c.channel||"")}</div></td>
+            <td class="num">${cl}${c.targetLeads?`<span style="color:var(--faint)">/${c.targetLeads}</span>`:""} leads</td>
+            <td class="num">${pct!==null?`<span class="pill ${pct>=100?"accent":pct>=50?"warn":"alert"}">${pct}%</span>`:"—"}</td>
+          </tr>`;
+        }).join("")}</tbody></table></div>`
+        : `<div class="empty"><strong>No live campaigns</strong>Set a campaign to Active to track it here.</div>`}
+    </div>
+
+    <div class="card">
+      <div class="card-h"><h3>Leads by source</h3><div class="spacer"></div>
+        <span class="eyebrow">all time</span></div>
+      ${srcList.length ? `<div class="bars">
+        ${srcList.slice(0,8).map(([k,n])=>`<div class="bar-row">
+          <div class="nm">${esc(k)}</div>
+          <div class="bar-track"><div class="bar-fill" style="width:${n/smax*100}%"></div></div>
+          <div class="fig">${n}</div></div>`).join("")}
+      </div>` : `<div class="empty">Tag leads with a source to fill this in.</div>`}
+    </div>
+  </div>
+
+  <div class="grid" style="grid-template-columns:1fr 1fr;margin-top:14px">
+    <div class="card">
+      <div class="card-h"><h3>Content coming up</h3><div class="spacer"></div>
+        <button class="btn sm" data-go="content">Content plan</button></div>
+      ${contentDue.length ? `<div class="tbl-wrap"><table><tbody>
+        ${contentDue.slice(0,7).map(c=>`<tr>
+          <td><span class="lnk" data-open="content:${c.id}">${esc(c.title)}</span>
+            <div style="font-size:11.5px;color:var(--muted)">${esc(c.type||"")}${c.channel?" · "+esc(c.channel):""}</div></td>
+          <td class="num">${pillFor("status",c.status)}</td>
+          <td class="num mono" style="font-size:12px">${fmtDate(c.publishDate)}</td>
+        </tr>`).join("")}</tbody></table></div>`
+        : `<div class="empty"><strong>Nothing scheduled</strong>Plan blog posts, graphics and videos in Content.</div>`}
+    </div>
+
+    <div class="card">
+      <div class="card-h"><h3>Leads awaiting handover</h3><div class="spacer"></div>
+        <button class="btn sm" data-go="leads">All leads</button></div>
+      ${waiting.length ? `<div class="tbl-wrap"><table><tbody>
+        ${waiting.slice(0,7).map(l=>`<tr>
+          <td><span class="lnk" data-open="leads:${l.id}">${esc(l.company)}</span>
+            <div style="font-size:11.5px;color:var(--muted)">${esc(l.source||"")} · ${esc(userName(l.ownerId))}</div></td>
+          <td class="num">${pillFor("rating",l.rating)}</td>
+          <td class="num mono" style="font-size:12px">${daysSince(l.createdAt)}d old</td>
+        </tr>`).join("")}</tbody></table></div>`
+        : `<div class="empty"><strong>All picked up</strong>Every lead has been contacted.</div>`}
+    </div>
+  </div>`;
+}
+
 /* ------------------------------------------------------------------ */
 /* 12. PIPELINE BOARD — deals age in place, and the left edge of every  */
 /*     card shows how long it has sat in its current stage.            */
@@ -1624,13 +2531,14 @@ function viewTeam(){
   </div>
   <div class="card"><div class="tbl-wrap"><table>
     <thead><tr><th>Name</th><th>Role</th><th>Department</th><th>Sees</th>
-      <th style="text-align:right">Monthly target</th><th>Status</th><th style="text-align:right">·</th></tr></thead>
+      <th style="text-align:right">Monthly target</th><th style="text-align:right">Comm.</th><th>Status</th><th style="text-align:right">·</th></tr></thead>
     <tbody>${list.map(u=>`<tr>
       <td><strong>${esc(u.displayName||"—")}</strong><div style="font-size:11.5px;color:var(--muted)">${esc(u.email||"")}</div></td>
       <td>${esc(ROLES[u.role]?.label || u.role)}</td>
       <td><span class="pill ${DEPT_CLASS[u.department]||""}">${esc(u.department||"—")}</span></td>
       <td style="font-size:12px;color:var(--muted)">${ ({admin:"Everything",manager:"Whole department",staff:"Own records"})[ROLES[u.role]?.tier] || "—" }</td>
       <td class="num">${u.monthlyTarget?money(u.monthlyTarget):"—"}</td>
+      <td class="num">${u.commissionRate?u.commissionRate+"%":"—"}</td>
       <td>${u.active===false?`<span class="pill alert">Inactive</span>`:`<span class="pill accent">Active</span>`}</td>
       <td class="row-act">
         <button class="btn sm" data-reset="${esc(u.email||"")}">Reset password</button>
@@ -1717,6 +2625,25 @@ function wireView(){
   v.querySelectorAll("[data-pipe]").forEach(el=> el.onclick = ()=>{
     state.filters.pipeMode = el.dataset.pipe; render();
   });
+  v.querySelectorAll("[data-ftab]").forEach(el=> el.onclick = ()=>{
+    const [route,tab] = el.dataset.ftab.split(":");
+    state.filters[route].tab = tab; render();
+  });
+  v.querySelectorAll("[data-newrec]").forEach(el=> el.onclick = ()=> openForm(el.dataset.newrec));
+  v.querySelectorAll("[data-tab]").forEach(el=> el.onclick = ()=>{
+    state.filters.tasks.tab = el.dataset.tab; render();
+  });
+  v.querySelectorAll("[data-cal]").forEach(el=> el.onclick = ()=>{
+    const f = state.filters.calendar;
+    const step = Number(el.dataset.cal);
+    f.offset = step === 0 ? 0 : f.offset + step;
+    f.day = null; render();
+  });
+  v.querySelectorAll("[data-day]").forEach(el=> el.onclick = ()=>{
+    const f = state.filters.calendar;
+    const d = Number(el.dataset.day);
+    f.day = f.day === d ? null : d; render();
+  });
   const ss = v.querySelector("#save-settings"); if (ss) ss.onclick = saveSettings;
 
   // drag and drop on the board
@@ -1775,8 +2702,14 @@ function closeModal(){ $("#modal-root").innerHTML = ""; document.removeEventList
 function escClose(e){ if(e.key==="Escape") closeModal(); }
 
 function fieldHTML(col,f,d){
+  if (f.type === "computed") return "";
   const v = d?.[f.k] ?? f.def ?? "";
   const id = "f-"+f.k;
+  if (f.type === "links") return `<div class="field full">
+    <label for="${id}">${esc(f.l)}</label>
+    <textarea id="${id}" data-k="${f.k}" placeholder="Signed contract | https://drive.google.com/...">${esc(v)}</textarea>
+    <span class="hint">One per line, as <strong>Label | link</strong>. Paste Drive or SharePoint links.</span>
+  </div>`;
   const lab = `<label for="${id}">${esc(f.l)}${f.req?' <span class="req">*</span>':""}</label>`;
   let input;
   if (f.type === "textarea") input = `<textarea id="${id}" data-k="${f.k}">${esc(v)}</textarea>`;
@@ -1813,6 +2746,7 @@ function dynamicOptions(type, sel){
 
 /* ---- create / edit record ---- */
 function openForm(col, id, preset){
+  if (col === "quotations") return openQuoteForm(id, preset);
   const S = SCHEMAS[col]; if(!S) return;
   const d = id ? { ...state.data[col].get(id), ...(preset||{}) } : (preset||{});
   modal(`
@@ -1886,6 +2820,7 @@ async function submitForm(col,id){
 
 /* ---- read-only detail ---- */
 function openDetail(col,id){
+  if (col === "quotations") return openQuoteDetail(id);
   const S = SCHEMAS[col], d = state.data[col].get(id);
   if(!d) return;
   const related = rows("activities").filter(a=>a.relatedId===id)
@@ -1907,6 +2842,7 @@ function openDetail(col,id){
         <div class="r"><div class="k">Created</div><div class="v mono" style="font-size:12.5px">${fmtDate(d.createdAt)} by ${esc(userName(d.createdBy))}</div></div>
         <div class="r"><div class="k">Last touched</div><div class="v mono" style="font-size:12.5px">${fmtDate(d.updatedAt)}</div></div>
       </div>
+      ${col === "accounts" ? purchaseHistory(id) : ""}
       <div style="margin-top:20px">
         <div class="card-h" style="padding-left:0;padding-right:0"><h3>Activity</h3><div class="spacer"></div>
           <button class="btn sm" id="log-act">Log activity</button></div>
@@ -2013,6 +2949,316 @@ function openConvert(leadId){
   };
 }
 
+/* ---- purchase history for a customer ---- */
+function purchaseHistory(accountId){
+  const dl = rows("deals").filter(d=>d.accountId===accountId);
+  const won = dl.filter(d=>d.stage==="Won").sort((a,b)=>toDate(b.closedAt||b.updatedAt)-toDate(a.closedAt||a.updatedAt));
+  const open = dl.filter(d=>OPEN_STAGES.includes(d.stage));
+  const qs = rows("quotations").filter(q=>q.accountId===accountId)
+    .sort((a,b)=>toDate(b.issueDate)-toDate(a.issueDate));
+  const spend = won.reduce((s,d)=>s+Number(d.value||0),0);
+  return `
+  <div style="margin-top:20px">
+    <div class="card-h" style="padding-left:0;padding-right:0">
+      <h3>Purchase history</h3><div class="spacer"></div>
+      <span class="eyebrow">${won.length} order${won.length===1?"":"s"} · ${money(spend)}</span>
+    </div>
+    ${won.length||open.length ? `<div class="tbl-wrap"><table><tbody>
+      ${won.map(d=>`<tr>
+        <td><span class="lnk" data-open="deals:${d.id}">${esc(d.title)}</span></td>
+        <td class="mono" style="font-size:12px">${fmtDate(d.closedAt||d.updatedAt)}</td>
+        <td class="num">${money(d.value)}</td>
+        <td><span class="pill accent">Won</span></td>
+      </tr>`).join("")}
+      ${open.map(d=>`<tr>
+        <td><span class="lnk" data-open="deals:${d.id}">${esc(d.title)}</span></td>
+        <td class="mono" style="font-size:12px">${fmtDate(d.expectedCloseDate)}</td>
+        <td class="num">${money(d.value)}</td>
+        <td>${pillFor("stage",d.stage)}</td>
+      </tr>`).join("")}
+    </tbody></table></div>` : `<p style="color:var(--muted);font-size:13px;margin:8px 0">No orders recorded yet.</p>`}
+    ${qs.length ? `<div style="margin-top:14px">
+      <div class="eyebrow" style="margin-bottom:6px">Quotations</div>
+      <div class="tbl-wrap"><table><tbody>
+        ${qs.map(q=>`<tr>
+          <td><span class="lnk" data-open="quotations:${q.id}">${esc(q.quoteNo)}</span>
+            <div style="font-size:11.5px;color:var(--muted)">${esc(q.title||"")}</div></td>
+          <td class="num">${money(q.total)}</td>
+          <td>${pillFor("status", quoteStatus(q))}</td>
+        </tr>`).join("")}
+      </tbody></table></div></div>`:""}
+  </div>`;
+}
+
+/* ---- quotations: line items, totals, and a printable copy ---- */
+function nextQuoteNo(){
+  const yr = new Date().getFullYear();
+  const nums = rows("quotations")
+    .map(q=>String(q.quoteNo||""))
+    .filter(n=>n.startsWith(`QT-${yr}-`))
+    .map(n=>parseInt(n.split("-")[2],10) || 0);
+  const next = (nums.length ? Math.max(...nums) : 0) + 1;
+  return `QT-${yr}-${String(next).padStart(4,"0")}`;
+}
+function quoteTotals(items, discountPct, taxPct){
+  const sub = items.reduce((s,i)=>s + Number(i.qty||0) * Number(i.price||0), 0);
+  const disc = sub * (Number(discountPct)||0)/100;
+  const net = sub - disc;
+  const tax = net * (Number(taxPct)||0)/100;
+  return { sub, disc, net, tax, total: net + tax };
+}
+function itemRow(i, it={}){
+  return `<tr data-row="${i}">
+    <td><input data-i="desc" value="${esc(it.desc||"")}" placeholder="Item or service"></td>
+    <td style="width:78px"><input data-i="qty" type="number" min="0" step="any" value="${esc(it.qty??1)}"></td>
+    <td style="width:118px"><input data-i="price" type="number" min="0" step="any" value="${esc(it.price??"")}"></td>
+    <td style="width:112px;text-align:right;font-family:var(--mono);font-size:12.5px;padding-top:12px"
+        data-i="amount">${money(Number(it.qty||0)*Number(it.price||0))}</td>
+    <td style="width:26px;padding-top:8px"><button class="x" data-del-row="${i}" title="Remove">×</button></td>
+  </tr>`;
+}
+function openQuoteForm(id, preset){
+  const q = id ? { ...state.data.quotations.get(id) } : (preset || {});
+  let items = Array.isArray(q.items) && q.items.length ? [...q.items] : [{desc:"",qty:1,price:""}];
+  const accts = rows("accounts").sort((a,b)=>(a.name||"").localeCompare(b.name||""));
+  const dls   = rows("deals").sort((a,b)=>(a.title||"").localeCompare(b.title||""));
+  const cts   = rows("contacts");
+  const today = todayISO();
+  const plus30 = new Date(Date.now()+30*DAY).toISOString().slice(0,10);
+
+  modal(`
+    <div class="modal-h"><h3>${id?"Edit quotation":"New quotation"}</h3>
+      <button class="x" data-close aria-label="Close">×</button></div>
+    <div class="modal-b">
+      <div id="form-err" class="err hidden"></div>
+      <div class="fgrid">
+        <div class="field"><label for="q-no">Quote no. <span class="req">*</span></label>
+          <input id="q-no" value="${esc(q.quoteNo || nextQuoteNo())}"></div>
+        <div class="field"><label for="q-status">Status</label>
+          <select id="q-status">${["Draft","Sent","Viewed","Approved","Declined","Expired"].map(o=>opt(o,q.status||"Draft")).join("")}</select></div>
+        <div class="field full"><label for="q-title">Subject <span class="req">*</span></label>
+          <input id="q-title" value="${esc(q.title||"")}" placeholder="Supply and installation of ..."></div>
+        <div class="field"><label for="q-acct">Customer</label>
+          <select id="q-acct"><option value="">—</option>
+            ${accts.map(a=>`<option value="${a.id}"${a.id===q.accountId?" selected":""}>${esc(a.name)}</option>`).join("")}</select></div>
+        <div class="field"><label for="q-contact">Attention to</label>
+          <select id="q-contact"><option value="">—</option>
+            ${cts.map(c=>`<option value="${c.id}"${c.id===q.contactId?" selected":""}>${esc(titleOf("contacts",c))}</option>`).join("")}</select></div>
+        <div class="field"><label for="q-deal">Linked opportunity</label>
+          <select id="q-deal"><option value="">—</option>
+            ${dls.map(d=>`<option value="${d.id}"${d.id===q.dealId?" selected":""}>${esc(d.title)}</option>`).join("")}</select></div>
+        <div class="field"><label for="q-owner">Owner</label>
+          <select id="q-owner"${isManager()?"":" disabled"}>
+            ${isManager()?ownerOptions(q.ownerId||myUid()):`<option value="${myUid()}">${esc(state.profile.displayName||"You")}</option>`}</select></div>
+        <div class="field"><label for="q-issue">Issued</label>
+          <input id="q-issue" type="date" value="${esc(q.issueDate||today)}"></div>
+        <div class="field"><label for="q-valid">Valid until</label>
+          <input id="q-valid" type="date" value="${esc(q.validUntil||plus30)}"></div>
+      </div>
+
+      <div class="eyebrow" style="margin:20px 0 2px">Line items</div>
+      <table class="items">
+        <thead><tr><th>Description</th><th>Qty</th><th>Unit price</th><th style="text-align:right">Amount</th><th></th></tr></thead>
+        <tbody id="q-items">${items.map((it,i)=>itemRow(i,it)).join("")}</tbody>
+      </table>
+      <button class="btn sm" id="q-add" style="margin-top:8px">+ Add line</button>
+
+      <div class="fgrid" style="margin-top:18px">
+        <div class="field"><label for="q-disc">Discount (%)</label>
+          <input id="q-disc" type="number" min="0" max="100" step="any" value="${esc(q.discountPct||"")}"></div>
+        <div class="field"><label for="q-tax">VAT / tax (%)</label>
+          <input id="q-tax" type="number" min="0" step="any" value="${esc(q.taxPct??12)}"></div>
+      </div>
+      <div class="totals" id="q-totals"></div>
+
+      <div class="field full" style="margin-top:16px"><label for="q-terms">Terms &amp; notes</label>
+        <textarea id="q-terms" placeholder="Delivery, payment terms, warranty…">${esc(q.terms||"")}</textarea></div>
+    </div>
+    <div class="modal-f">
+      ${id?`<button class="btn dgr" id="q-del">Delete</button>`:""}
+      <div class="spacer"></div>
+      <button class="btn" data-close>Cancel</button>
+      <button class="btn pri" id="q-save">${id?"Save quotation":"Create quotation"}</button>
+    </div>`, true);
+
+  function collect(){
+    return Array.from(document.querySelectorAll("#q-items tr")).map(tr=>({
+      desc:  tr.querySelector('[data-i="desc"]').value,
+      qty:   Number(tr.querySelector('[data-i="qty"]').value||0),
+      price: Number(tr.querySelector('[data-i="price"]').value||0)
+    }));
+  }
+  function recalc(){
+    const it = collect();
+    document.querySelectorAll("#q-items tr").forEach((tr,i)=>{
+      tr.querySelector('[data-i="amount"]').textContent = money(it[i].qty * it[i].price);
+    });
+    const t = quoteTotals(it, $("#q-disc").value, $("#q-tax").value);
+    $("#q-totals").innerHTML = `
+      <div class="row"><span style="color:var(--muted)">Subtotal</span><span>${money(t.sub)}</span></div>
+      ${t.disc?`<div class="row"><span style="color:var(--muted)">Discount</span><span>−${money(t.disc)}</span></div>`:""}
+      ${t.tax?`<div class="row"><span style="color:var(--muted)">Tax</span><span>${money(t.tax)}</span></div>`:""}
+      <div class="row grand"><span>Total</span><span>${money(t.total)}</span></div>`;
+  }
+  function wireRows(){
+    document.querySelectorAll("#q-items input").forEach(i=> i.oninput = recalc);
+    document.querySelectorAll("[data-del-row]").forEach(b=> b.onclick = ()=>{
+      if (document.querySelectorAll("#q-items tr").length <= 1) return;
+      b.closest("tr").remove(); recalc();
+    });
+  }
+  $("#q-add").onclick = ()=>{
+    const tb = $("#q-items");
+    tb.insertAdjacentHTML("beforeend", itemRow(tb.children.length, {qty:1,price:""}));
+    wireRows(); recalc();
+  };
+  $("#q-disc").oninput = recalc; $("#q-tax").oninput = recalc;
+  wireRows(); recalc();
+
+  const del = document.querySelector("#q-del");
+  if (del) del.onclick = async ()=>{
+    if(!confirm("Delete this quotation?")) return;
+    try{ await deleteDoc(doc(db,"quotations",id)); closeModal(); toast("Quotation deleted"); }
+    catch(e){ toast(e.message,true); }
+  };
+
+  $("#q-save").onclick = async ()=>{
+    const box = $("#form-err");
+    const items2 = collect().filter(i=>i.desc || i.price);
+    if (!$("#q-title").value.trim() || !$("#q-no").value.trim()){
+      box.textContent = "A quotation needs a number and a subject."; box.classList.remove("hidden"); return;
+    }
+    if (!items2.length){
+      box.textContent = "Add at least one line item."; box.classList.remove("hidden"); return;
+    }
+    const t = quoteTotals(items2, $("#q-disc").value, $("#q-tax").value);
+    const ownerId = isManager() ? ($("#q-owner").value || myUid()) : (q.ownerId || myUid());
+    const payload = {
+      quoteNo:$("#q-no").value.trim(), title:$("#q-title").value.trim(),
+      accountId:$("#q-acct").value||null, contactId:$("#q-contact").value||null,
+      dealId:$("#q-deal").value||null, status:$("#q-status").value,
+      issueDate:$("#q-issue").value||null, validUntil:$("#q-valid").value||null,
+      items:items2, discountPct:Number($("#q-disc").value||0)||null,
+      taxPct:Number($("#q-tax").value||0)||null,
+      subtotal:t.sub, total:t.total, terms:$("#q-terms").value||null,
+      ownerId, department: state.users.get(ownerId)?.department || state.profile.department,
+      updatedAt: serverTimestamp()
+    };
+    $("#q-save").disabled = true;
+    try{
+      if (id) await updateDoc(doc(db,"quotations",id), payload);
+      else await addDoc(collection(db,"quotations"), { ...payload, createdAt:serverTimestamp(), createdBy:myUid() });
+      closeModal(); toast(id?"Quotation saved":"Quotation created");
+    }catch(e){
+      $("#q-save").disabled = false;
+      box.textContent = e.message; box.classList.remove("hidden");
+    }
+  };
+}
+
+function openQuoteDetail(id){
+  const q = state.data.quotations.get(id); if(!q) return;
+  const items = q.items || [];
+  const t = quoteTotals(items, q.discountPct, q.taxPct);
+  const st = quoteStatus(q);
+  modal(`
+    <div class="modal-h">
+      <div><div class="eyebrow">Quotation</div><h3>${esc(q.quoteNo)}</h3></div>
+      <button class="x" data-close aria-label="Close">×</button></div>
+    <div class="modal-b">
+      <div class="det">
+        <div class="r full"><div class="k">Subject</div><div class="v">${esc(q.title||"—")}</div></div>
+        <div class="r"><div class="k">Customer</div><div class="v">${esc(recordTitle("accounts",q.accountId))}</div></div>
+        <div class="r"><div class="k">Attention to</div><div class="v">${esc(recordTitle("contacts",q.contactId))}</div></div>
+        <div class="r"><div class="k">Status</div><div class="v">${pillFor("status",st)}</div></div>
+        <div class="r"><div class="k">Owner</div><div class="v">${esc(userName(q.ownerId))}</div></div>
+        <div class="r"><div class="k">Issued</div><div class="v mono" style="font-size:13px">${fmtDate(q.issueDate)}</div></div>
+        <div class="r"><div class="k">Valid until</div><div class="v mono" style="font-size:13px">${fmtDate(q.validUntil)}</div></div>
+      </div>
+      <table class="items" style="margin-top:18px">
+        <thead><tr><th>Description</th><th style="text-align:right">Qty</th>
+          <th style="text-align:right">Unit price</th><th style="text-align:right">Amount</th></tr></thead>
+        <tbody>${items.map(i=>`<tr>
+          <td style="padding:7px 6px">${esc(i.desc)}</td>
+          <td class="num" style="padding:7px 6px">${i.qty}</td>
+          <td class="num" style="padding:7px 6px">${money(i.price)}</td>
+          <td class="num" style="padding:7px 6px">${money(i.qty*i.price)}</td>
+        </tr>`).join("")}</tbody>
+      </table>
+      <div class="totals">
+        <div class="row"><span style="color:var(--muted)">Subtotal</span><span>${money(t.sub)}</span></div>
+        ${t.disc?`<div class="row"><span style="color:var(--muted)">Discount</span><span>−${money(t.disc)}</span></div>`:""}
+        ${t.tax?`<div class="row"><span style="color:var(--muted)">Tax</span><span>${money(t.tax)}</span></div>`:""}
+        <div class="row grand"><span>Total</span><span>${money(t.total)}</span></div>
+      </div>
+      ${q.terms?`<div style="margin-top:16px"><div class="eyebrow">Terms &amp; notes</div>
+        <p style="font-size:13px;white-space:pre-wrap;margin:5px 0 0">${esc(q.terms)}</p></div>`:""}
+    </div>
+    <div class="modal-f">
+      <button class="btn" id="q-print">Print</button>
+      <div class="spacer"></div>
+      <button class="btn" data-close>Close</button>
+      <button class="btn pri" id="q-edit">Edit</button>
+    </div>`, true);
+  $("#q-edit").onclick = ()=>{ closeModal(); openQuoteForm(id); };
+  $("#q-print").onclick = ()=> printQuote(id);
+}
+
+function printQuote(id){
+  const q = state.data.quotations.get(id); if(!q) return;
+  const items = q.items || [];
+  const t = quoteTotals(items, q.discountPct, q.taxPct);
+  const acct = state.data.accounts.get(q.accountId);
+  const w = window.open("", "_blank", "width=880,height=1000");
+  if (!w){ toast("Allow pop-ups to print", true); return; }
+  w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${esc(q.quoteNo)}</title>
+    <style>
+      body{font-family:system-ui,-apple-system,sans-serif;color:#111;margin:40px;font-size:13px}
+      h1{font-size:22px;margin:0 0 2px} .muted{color:#666}
+      .head{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #E8621A;padding-bottom:14px}
+      table{width:100%;border-collapse:collapse;margin-top:26px}
+      th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:#666;
+         border-bottom:1px solid #ccc;padding:7px 6px}
+      td{padding:8px 6px;border-bottom:1px solid #eee}
+      .r{text-align:right} .tot{margin-top:18px;margin-left:auto;width:270px}
+      .tot div{display:flex;justify-content:space-between;padding:4px 0}
+      .grand{border-top:1px solid #333;font-weight:700;font-size:16px;padding-top:8px}
+      .terms{margin-top:30px;white-space:pre-wrap;font-size:12px;color:#333}
+      .sign{margin-top:56px;display:flex;gap:60px}
+      .sign div{flex:1;border-top:1px solid #999;padding-top:6px;font-size:11px;color:#666}
+    </style></head><body>
+    <div class="head">
+      <div><h1>MECHATRADE INDUSTRIAL SOLUTIONS INC.</h1>
+        <div class="muted">Quotation</div></div>
+      <div class="r"><div><strong>${esc(q.quoteNo)}</strong></div>
+        <div class="muted">Issued ${fmtDate(q.issueDate)}</div>
+        <div class="muted">Valid until ${fmtDate(q.validUntil)}</div></div>
+    </div>
+    <div style="margin-top:22px">
+      <div class="muted" style="font-size:11px;text-transform:uppercase;letter-spacing:.08em">Prepared for</div>
+      <div style="font-size:15px;font-weight:600">${esc(acct?.name || "—")}</div>
+      ${q.contactId?`<div class="muted">Attn: ${esc(recordTitle("contacts",q.contactId))}</div>`:""}
+      ${acct?.address?`<div class="muted">${esc(acct.address)}</div>`:""}
+      <div style="margin-top:14px;font-weight:600">${esc(q.title||"")}</div>
+    </div>
+    <table>
+      <thead><tr><th>Description</th><th class="r">Qty</th><th class="r">Unit price</th><th class="r">Amount</th></tr></thead>
+      <tbody>${items.map(i=>`<tr><td>${esc(i.desc)}</td><td class="r">${i.qty}</td>
+        <td class="r">${money(i.price)}</td><td class="r">${money(i.qty*i.price)}</td></tr>`).join("")}</tbody>
+    </table>
+    <div class="tot">
+      <div><span>Subtotal</span><span>${money(t.sub)}</span></div>
+      ${t.disc?`<div><span>Discount</span><span>−${money(t.disc)}</span></div>`:""}
+      ${t.tax?`<div><span>Tax</span><span>${money(t.tax)}</span></div>`:""}
+      <div class="grand"><span>Total</span><span>${money(t.total)}</span></div>
+    </div>
+    ${q.terms?`<div class="terms"><strong>Terms &amp; notes</strong>\n${esc(q.terms)}</div>`:""}
+    <div class="sign"><div>Prepared by — ${esc(userName(q.ownerId))}</div><div>Customer acceptance / date</div></div>
+    </body></html>`);
+  w.document.close();
+  setTimeout(()=>{ w.focus(); w.print(); }, 400);
+}
+
 /* ---- add / edit a person (admin) ---- */
 function openUserForm(uid){
   if(!isAdmin()) return;
@@ -2038,6 +3284,9 @@ function openUserForm(uid){
         <div class="field"><label for="u-target">Monthly target</label>
           <input id="u-target" type="number" min="0" step="any" value="${esc(u?.monthlyTarget||"")}">
           <span class="hint">Leave blank if this role doesn't carry a quota.</span></div>
+        <div class="field"><label for="u-comm">Commission rate (%)</label>
+          <input id="u-comm" type="number" min="0" max="100" step="any" value="${esc(u?.commissionRate||"")}">
+          <span class="hint">Applied to their won revenue for the month.</span></div>
         <div class="field"><label for="u-active">Status</label>
           <select id="u-active"><option value="true"${u?.active!==false?" selected":""}>Active</option>
             <option value="false"${u?.active===false?" selected":""}>Inactive — can't sign in</option></select></div>
@@ -2060,6 +3309,7 @@ function openUserForm(uid){
     const profile = {
       displayName:name, email, role:$("#u-role").value, department:$("#u-dept").value,
       monthlyTarget: Number($("#u-target").value||0) || null,
+      commissionRate: Number($("#u-comm").value||0) || null,
       active: $("#u-active").value === "true", updatedAt: serverTimestamp()
     };
     $("#u-save").disabled = true;
