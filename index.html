@@ -1173,34 +1173,48 @@ function syncStats(){
 /* ------------------------------------------------------------------ */
 const NAV = [
   { group:"Work", items:[
-    { id:"dashboard",  label:"Dashboard",     icon:"◧" },
-    { id:"tasks",      label:"Tasks",         icon:"✓", count:()=>openTasks().filter(a=>daysUntil(a.dueDate)<=0).length },
-    { id:"leads",      label:"Leads",         icon:"◔", count:()=>rows("leads").filter(l=>!["Converted","Unqualified"].includes(l.status)).length },
-    { id:"pipeline",   label:"Opportunities", icon:"◈", count:()=>rows("deals").filter(d=>OPEN_STAGES.includes(d.stage)).length },
-    { id:"quotations", label:"Quotations",    icon:"❑", depts:["Sales","Business Development"], count:()=>rows("quotations").filter(q=>["Draft","Sent","Viewed"].includes(quoteStatus(q))).length },
-    { id:"calendar",   label:"Calendar",      icon:"▦" },
-    { id:"activities", label:"Activity log",  icon:"◉" }
+    { id:"dashboard",  label:"Dashboard",    icon:"◧" },
+    { id:"tasks",      label:"Tasks",        icon:"✓", count:()=>openTasks().filter(a=>daysUntil(a.dueDate)<=0).length },
+    { id:"calendar",   label:"Calendar",     icon:"▦" },
+    { id:"activities", label:"Activity log", icon:"◉" }
   ]},
-  { group:"Records", items:[
-    { id:"accounts", label:"Customers", icon:"▣" },
-    { id:"contacts", label:"Contacts",  icon:"◍" }
+
+  /* ---- Sales ---- */
+  { group:"Sales", depts:["Sales"], items:[
+    { id:"leads",      label:"Leads",         icon:"◔", depts:["Sales"],
+      count:()=>rows("leads").filter(l=>!["Converted","Unqualified"].includes(l.status)).length },
+    { id:"pipeline",   label:"Opportunities", icon:"◈", depts:["Sales"],
+      count:()=>rows("deals").filter(d=>OPEN_STAGES.includes(d.stage)).length },
+    { id:"quotations", label:"Quotations",    icon:"❑", depts:["Sales"],
+      count:()=>rows("quotations").filter(q=>["Draft","Sent","Viewed"].includes(quoteStatus(q))).length },
+    { id:"accounts",   label:"Customers",     icon:"▣", depts:["Sales"] },
+    { id:"contacts",   label:"Contacts",      icon:"◍", depts:["Sales"] }
   ]},
+
+  /* ---- Business Development ---- */
   { group:"Business Development", depts:["Business Development"], items:[
-    { id:"prospects",  label:"Prospects",    icon:"◌" },
-    { id:"partners",   label:"Partnerships", icon:"⬡" },
-    { id:"projects",   label:"Projects & RFQs", icon:"⌗",
+    { id:"prospects",  label:"Prospects",       icon:"◌", depts:["Business Development"] },
+    { id:"partners",   label:"Partnerships",    icon:"⬡", depts:["Business Development"] },
+    { id:"projects",   label:"Projects & RFQs", icon:"⌗", depts:["Business Development"],
       count:()=>rows("deals").filter(d=>{const n=daysUntil(d.submissionDeadline); return n!==null && n>=0 && n<=14;}).length },
-    { id:"engagement", label:"Engagement",   icon:"◈" },
-    { id:"intel",      label:"Market intel", icon:"◇" },
-    { id:"forecast",   label:"Forecast",     icon:"◭" }
+    { id:"engagement", label:"Engagement",      icon:"◈", depts:["Business Development"] },
+    { id:"contacts",   label:"Contacts",        icon:"◍", depts:["Business Development"] },
+    { id:"intel",      label:"Market intel",    icon:"◇", depts:["Business Development"] },
+    { id:"forecast",   label:"Forecast",        icon:"◭", depts:["Business Development"] }
   ]},
+
+  /* ---- Marketing ---- */
   { group:"Marketing", depts:["Marketing"], items:[
-    { id:"campaigns", label:"Campaigns", icon:"◎" },
-    { id:"content",   label:"Content",   icon:"✎" },
-    { id:"assets",    label:"Assets",    icon:"▤" }
+    { id:"leads",     label:"Leads",     icon:"◔", depts:["Marketing"],
+      count:()=>rows("leads").filter(l=>l.status==="New").length },
+    { id:"campaigns", label:"Campaigns", icon:"◎", depts:["Marketing"] },
+    { id:"events",    label:"Events",    icon:"⚑", depts:["Marketing"] },
+    { id:"content",   label:"Content",   icon:"✎", depts:["Marketing"] },
+    { id:"assets",    label:"Assets",    icon:"▤", depts:["Marketing"] }
   ]},
+
   { group:"Insight", items:[
-    { id:"performance", label:"Performance", icon:"◭" },
+    { id:"performance", label:"Performance", icon:"◭", depts:["Sales","Business Development"] },
     { id:"reports",     label:"Reports",     icon:"◫" }
   ]},
   { group:"Administration", admin:true, items:[
@@ -1215,8 +1229,15 @@ function inDept(x){
   return x.depts.includes(state.profile.department);
 }
 function renderNav(){
+  const seen = new Set();
   const html = NAV.filter(g=>(!g.admin || isAdmin()) && inDept(g))
-    .map(g=>{ const items = g.items.filter(inDept); return !items.length ? "" : `
+    .map(g=>{
+      const items = g.items.filter(i=>{
+        if (!inDept(i)) return false;
+        if (seen.has(i.id)) return false;      // an admin sees each screen once
+        seen.add(i.id); return true;
+      });
+      return !items.length ? "" : `
     <div class="nav-group">${esc(g.group)}</div>
     ${items.map(i=>{
       const n = i.count ? i.count() : 0;
@@ -1233,7 +1254,18 @@ function renderNav(){
   });
 }
 
+function allowedRoutes(){
+  const out = new Set();
+  NAV.filter(g=>(!g.admin || isAdmin()) && inDept(g))
+     .forEach(g=> g.items.filter(inDept).forEach(i=> out.add(i.id)));
+  // screens reachable from links rather than the menu
+  ["quotations","pipeline","accounts","contacts","leads"].forEach(id=>{
+    if (isAdmin()) out.add(id);
+  });
+  return out;
+}
 function setRoute(r){
+  if (state.profile && !allowedRoutes().has(r)) r = "dashboard";
   state.route = r; state.search = ""; $("#q").value = "";
   location.hash = r;
   renderNav(); render();
@@ -1248,7 +1280,8 @@ const NEW_FOR = { leads:"leads", pipeline:"deals", accounts:"accounts", contacts
                   activities:"activities", campaigns:"campaigns", dashboard:"activities",
                   quotations:"quotations", tasks:"activities", calendar:"activities",
                   intel:"intel", content:"content", assets:"assets",
-                  prospects:"accounts", partners:"accounts", projects:"deals", engagement:"activities" };
+                  prospects:"accounts", partners:"accounts", projects:"deals", engagement:"activities",
+                  events:"campaigns" };
 $("#new-btn").onclick = ()=>{
   if (state.route === "team")     return openUserForm();
   if (state.route === "settings") return setRoute("team");
@@ -1265,7 +1298,7 @@ const TITLES = { dashboard:"Dashboard", leads:"Leads", pipeline:"Opportunities",
                  prospects:"Prospect companies", partners:"Partnership management",
                  projects:"Project opportunities", engagement:"Client engagement",
                  intel:"Market intelligence", forecast:"Pipeline forecast",
-                 content:"Content plan", assets:"Marketing assets" };
+                 content:"Content plan", assets:"Marketing assets", events:"Events" };
 function render(){
   if(!state.profile) return;
   $("#view-title").textContent = TITLES[state.route] || "Mechatrade";
@@ -1281,7 +1314,8 @@ function render(){
     case "prospects":
     case "partners":
     case "projects":
-    case "engagement": v.innerHTML = viewFiltered(state.route); break;
+    case "engagement":
+    case "events":     v.innerHTML = viewFiltered(state.route); break;
     case "pipeline":   v.innerHTML = viewPipeline();  break;
     case "reports":    v.innerHTML = viewReports();   break;
     case "team":       v.innerHTML = viewTeam();      break;
@@ -1945,6 +1979,13 @@ const FILTERED = {
     ["gov",     "Government",        d=>d.sector==="Government"],
     ["private", "Private",           d=>d.sector==="Private"],
     ["due",     "Deadline this month", d=>{const n=daysUntil(d.submissionDeadline); return n!==null && n>=0 && n<=31;}]
+  ]},
+  events: { col:"campaigns", tabs:[
+    ["all",      "All events",      c=>["Trade Show","Seminar","Product Launch"].includes(c.channel)],
+    ["trade",    "Trade shows",     c=>c.channel==="Trade Show"],
+    ["seminar",  "Seminars",        c=>c.channel==="Seminar"],
+    ["launch",   "Product launches",c=>c.channel==="Product Launch"],
+    ["upcoming", "Upcoming",        c=>{const n=daysUntil(c.startDate); return n!==null && n>=0;}]
   ]},
   engagement: { col:"activities", tabs:[
     ["meeting",     "Meetings",      a=>a.type==="Meeting"],
