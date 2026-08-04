@@ -701,7 +701,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import {
   getFirestore, collection, doc, getDoc, setDoc, addDoc, updateDoc, deleteDoc,
-  onSnapshot, query, where, serverTimestamp, writeBatch
+  onSnapshot, query, where, serverTimestamp, writeBatch, runTransaction
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 /* ------------------------------------------------------------------ */
@@ -738,6 +738,10 @@ const ROLES = {
 };
 const DEPTS = ["Sales","Business Development","Marketing","Admin"];
 const DEPT_CLASS = { "Sales":"accent", "Business Development":"info", "Marketing":"warn", "Admin":"" };
+/* Quotation numbering: MTISI-<dept>-<year>-<month>-<5 digit series>
+   The series restarts each month, per department. */
+const QUOTE_PREFIX = { "Sales":"S", "Business Development":"BD", "Marketing":"M", "Admin":"ADM" };
+const QUOTE_ROOT = "MTISI";
 
 /* Stage list drives the pipeline board. Edit freely — order matters. */
 const STAGES = [
@@ -948,7 +952,7 @@ const COLLECTIONS = Object.keys(SCHEMAS);
 const state = {
   user:null, profile:null, workspace:"Admin", settings:{...DEFAULT_SETTINGS},
   data:Object.fromEntries(COLLECTIONS.map(c=>[c,new Map()])),
-  users:new Map(), stats:new Map(), route:"dashboard", search:"", unsubs:[], filters:{}
+  users:new Map(), stats:new Map(), counters:new Map(), route:"dashboard", search:"", unsubs:[], filters:{}
 };
 const isAdmin   = ()=> state.profile?.tier === "admin";
 /* An admin who picks a workspace is treated as being in that department —
@@ -1160,6 +1164,12 @@ function subscribeAll(){
     if (state.route === "performance") render();
   }, e=>console.warn("stats",e)));
 
+  // quotation series counters — read so the form can show the next number
+  state.unsubs.push(onSnapshot(collection(db,"counters"), s=>{
+    state.counters = new Map(s.docs.map(d=>[d.id,{id:d.id,...d.data()}]));
+    if (state.route === "quotations") render();
+  }, e=>console.warn("counters",e)));
+
   // shared dropdown lists
   state.unsubs.push(onSnapshot(doc(db,"settings","config"), s=>{
     state.settings = { ...DEFAULT_SETTINGS, ...(s.exists()? s.data():{}) };
@@ -1223,8 +1233,7 @@ const NAV = [
       count:()=>rows("leads").filter(l=>!["Converted","Unqualified"].includes(l.status)).length },
     { id:"pipeline",   label:"Opportunities", icon:"◈", depts:["Sales"],
       count:()=>rows("deals").filter(d=>OPEN_STAGES.includes(d.stage)).length },
-    { id:"quotations", label:"Quotations",    icon:"❑", depts:["Sales"],
-      count:()=>rows("quotations").filter(q=>["Draft","Sent","Viewed"].includes(quoteStatus(q))).length },
+    { id:"quotations", label:"Quotations",    icon:"❑", depts:["Sales"], count:openQuoteCount },
     { id:"accounts",   label:"Customers",     icon:"▣", depts:["Sales"] },
     { id:"contacts",   label:"Contacts",      icon:"◍", depts:["Sales"] }
   ]},
@@ -1236,6 +1245,7 @@ const NAV = [
     { id:"projects",   label:"Projects & RFQs", icon:"⌗", depts:["Business Development"],
       count:()=>rows("deals").filter(d=>{const n=daysUntil(d.submissionDeadline); return n!==null && n>=0 && n<=14;}).length },
     { id:"engagement", label:"Engagement",      icon:"◈", depts:["Business Development"] },
+    { id:"quotations", label:"Quotations",      icon:"❑", depts:["Business Development"], count:openQuoteCount },
     { id:"contacts",   label:"Contacts",        icon:"◍", depts:["Business Development"] },
     { id:"intel",      label:"Market intel",    icon:"◇", depts:["Business Development"] },
     { id:"forecast",   label:"Forecast",        icon:"◭", depts:["Business Development"] }
@@ -1248,7 +1258,8 @@ const NAV = [
     { id:"campaigns", label:"Campaigns", icon:"◎", depts:["Marketing"] },
     { id:"events",    label:"Events",    icon:"⚑", depts:["Marketing"] },
     { id:"content",   label:"Content",   icon:"✎", depts:["Marketing"] },
-    { id:"assets",    label:"Assets",    icon:"▤", depts:["Marketing"] }
+    { id:"assets",    label:"Assets",    icon:"▤", depts:["Marketing"] },
+    { id:"quotations",label:"Quotations",icon:"❑", depts:["Marketing"], count:openQuoteCount }
   ]},
 
   { group:"Insight", items:[
@@ -1648,6 +1659,9 @@ function titleOf(col,d){
 /* ------------------------------------------------------------------ */
 /* 11b. SALES HELPERS                                                  */
 /* ------------------------------------------------------------------ */
+function openQuoteCount(){            // declared, so the NAV table can use it
+  return rows("quotations").filter(q=>["Draft","Sent","Viewed"].includes(quoteStatus(q))).length;
+}
 function openTasks(){ return rows("activities").filter(a=>a.status!=="Done" && a.dueDate); }
 function isToday(v){ const d=toDate(v); if(!d) return false;
   const n=new Date(); return d.toDateString() === n.toDateString(); }
@@ -3092,14 +3106,25 @@ function purchaseHistory(accountId){
 }
 
 /* ---- quotations: line items, totals, and a printable copy ---- */
-function nextQuoteNo(){
-  const yr = new Date().getFullYear();
-  const nums = rows("quotations")
-    .map(q=>String(q.quoteNo||""))
-    .filter(n=>n.startsWith(`QT-${yr}-`))
-    .map(n=>parseInt(n.split("-")[2],10) || 0);
-  const next = (nums.length ? Math.max(...nums) : 0) + 1;
-  return `QT-${yr}-${String(next).padStart(4,"0")}`;
+/* Which department's series a quote belongs to — the owner's department,
+   so a manager raising a quote for a rep still numbers it correctly. */
+function quoteDeptOf(ownerId){
+  const d = state.users.get(ownerId)?.department;
+  return QUOTE_PREFIX[d] ? d : (actingDept() || state.profile.department);
+}
+function counterKey(dept, isoDate){
+  const d = isoDate ? new Date(isoDate) : new Date();
+  const when = isNaN(d) ? new Date() : d;
+  const yr = when.getFullYear();
+  const mo = String(when.getMonth()+1).padStart(2,"0");
+  return `${QUOTE_ROOT}-${QUOTE_PREFIX[dept] || "ADM"}-${yr}-${mo}`;
+}
+function formatQuoteNo(key, n){ return `${key}-${String(n).padStart(5,"0")}`; }
+/* What the next number will be, for display only. The real one is issued
+   inside a transaction at save time so two people can't take the same one. */
+function projectedQuoteNo(dept, isoDate){
+  const key = counterKey(dept, isoDate);
+  return formatQuoteNo(key, state.counters.get(key)?.next || 1);
 }
 function quoteTotals(items, discountPct, taxPct){
   const sub = items.reduce((s,i)=>s + Number(i.qty||0) * Number(i.price||0), 0);
@@ -3133,8 +3158,10 @@ function openQuoteForm(id, preset){
     <div class="modal-b">
       <div id="form-err" class="err hidden"></div>
       <div class="fgrid">
-        <div class="field"><label for="q-no">Quote no. <span class="req">*</span></label>
-          <input id="q-no" value="${esc(q.quoteNo || nextQuoteNo())}"></div>
+        <div class="field"><label for="q-no">Quote no.</label>
+          <input id="q-no" value="${esc(q.quoteNo || "")}" readonly
+            placeholder="Issued when you save">
+          <span class="hint" id="q-no-hint"></span></div>
         <div class="field"><label for="q-status">Status</label>
           <select id="q-status">${["Draft","Sent","Viewed","Approved","Declined","Expired"].map(o=>opt(o,q.status||"Draft")).join("")}</select></div>
         <div class="field full"><label for="q-title">Subject <span class="req">*</span></label>
@@ -3215,12 +3242,26 @@ function openQuoteForm(id, preset){
     wireRows(); recalc();
   };
   $("#q-disc").oninput = recalc; $("#q-tax").oninput = recalc;
+
+  function refreshNumber(){
+    const hint = $("#q-no-hint");
+    if (id){ hint.textContent = "Numbers can't be changed once issued."; return; }
+    const owner = isManager() ? ($("#q-owner").value || myUid()) : myUid();
+    const dept = quoteDeptOf(owner);
+    $("#q-no").value = projectedQuoteNo(dept, $("#q-issue").value);
+    hint.textContent = `${dept} series. Confirmed when you save — if a colleague saves first, you'll get the next one.`;
+  }
+  $("#q-issue").onchange = refreshNumber;
+  const ownerSel = document.querySelector("#q-owner");
+  if (ownerSel) ownerSel.onchange = refreshNumber;
+  refreshNumber();
+
   wireRows(); recalc();
 
   /* Preview reads what's on screen right now — no need to save first. */
   function draftFromForm(){
     return {
-      quoteNo:$("#q-no").value.trim(), title:$("#q-title").value.trim(),
+      quoteNo:$("#q-no").value.trim() || "—", title:$("#q-title").value.trim(),
       accountId:$("#q-acct").value||null, contactId:$("#q-contact").value||null,
       dealId:$("#q-deal").value||null, status:$("#q-status").value,
       issueDate:$("#q-issue").value||null, validUntil:$("#q-valid").value||null,
@@ -3252,7 +3293,7 @@ function openQuoteForm(id, preset){
     const t = quoteTotals(items2, $("#q-disc").value, $("#q-tax").value);
     const ownerId = isManager() ? ($("#q-owner").value || myUid()) : (q.ownerId || myUid());
     const payload = {
-      quoteNo:$("#q-no").value.trim(), title:$("#q-title").value.trim(),
+      title:$("#q-title").value.trim(),
       accountId:$("#q-acct").value||null, contactId:$("#q-contact").value||null,
       dealId:$("#q-deal").value||null, status:$("#q-status").value,
       issueDate:$("#q-issue").value||null, validUntil:$("#q-valid").value||null,
@@ -3264,12 +3305,31 @@ function openQuoteForm(id, preset){
     };
     $("#q-save").disabled = true;
     try{
-      if (id) await updateDoc(doc(db,"quotations",id), payload);
-      else await addDoc(collection(db,"quotations"), { ...payload, createdAt:serverTimestamp(), createdBy:myUid() });
-      closeModal(); toast(id?"Quotation saved":"Quotation created");
+      if (id){
+        await updateDoc(doc(db,"quotations",id), payload);   // number is never rewritten
+        closeModal(); toast("Quotation saved");
+      } else {
+        const key = counterKey(quoteDeptOf(ownerId), payload.issueDate);
+        const issued = await runTransaction(db, async tx=>{
+          const cref = doc(db,"counters",key);
+          const snap = await tx.get(cref);
+          const n = snap.exists() ? Number(snap.data().next||1) : 1;
+          const quoteNo = formatQuoteNo(key, n);
+          tx.set(cref, { next:n+1, department:quoteDeptOf(ownerId), updatedAt:serverTimestamp() }, { merge:true });
+          tx.set(doc(collection(db,"quotations")), {
+            ...payload, quoteNo, seriesKey:key, seriesNo:n,
+            createdAt:serverTimestamp(), createdBy:myUid()
+          });
+          return quoteNo;
+        });
+        closeModal(); toast("Quotation " + issued + " created");
+      }
     }catch(e){
       $("#q-save").disabled = false;
-      box.textContent = e.message; box.classList.remove("hidden");
+      box.textContent = e.code === "permission-denied"
+        ? "Couldn't issue a quote number. Ask your administrator to publish the updated security rules."
+        : e.message;
+      box.classList.remove("hidden");
     }
   };
 }
