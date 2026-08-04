@@ -60,6 +60,7 @@ document.documentElement.setAttribute('data-theme', _t);
   --btn-brd:rgba(11,27,43,.13);   --btn-brd-hover:rgba(11,27,43,.22);
   --input-bg:rgba(255,255,255,.80); --input-brd:rgba(11,27,43,.14);
   --input-bg-focus:#FFFFFF; --placeholder:#93A3B2;
+  --opt-bg:#FFFFFF; --opt-text:#0B1B2B;
   --search-bg:rgba(255,255,255,.60);
 
   --shadow-1:rgba(11,27,43,.05); --shadow-2:rgba(11,27,43,.055);
@@ -100,6 +101,7 @@ document.documentElement.setAttribute('data-theme', _t);
   --btn-brd:rgba(255,255,255,.15); --btn-brd-hover:rgba(255,255,255,.26);
   --input-bg:rgba(255,255,255,.07); --input-brd:rgba(255,255,255,.20);
   --input-bg-focus:rgba(255,255,255,.13); --placeholder:#7E93A6;
+  --opt-bg:#132B3F; --opt-text:#F2F7FB;
   --search-bg:rgba(255,255,255,.06);
 
   --shadow-1:rgba(0,0,0,.30); --shadow-2:rgba(0,0,0,.34);
@@ -468,6 +470,7 @@ td .lnk:hover{border-color:var(--accent);color:var(--accent)}
 }
 .field textarea{min-height:74px;resize:vertical}
 .field .hint{font-size:11px;color:var(--faint)}
+select option, select optgroup{ background:var(--opt-bg); color:var(--opt-text); }
 .field input::placeholder,.field textarea::placeholder,.search input::placeholder{color:var(--placeholder)}
 .items input{color:var(--text)}
 .items input:focus{outline:none;border-color:var(--accent);background:var(--input-bg-focus)}
@@ -973,9 +976,11 @@ const esc = s => String(s??"").replace(/[&<>"']/g, c=>({ "&":"&amp;","<":"&lt;",
    account and contact names keep resolving across departments. */
 const rows = c => {
   const all = Array.from(state.data[c].values());
-  return state.workspace && state.workspace !== "Admin"
-    ? all.filter(d => d.department === state.workspace)
-    : all;
+  if (!state.workspace || state.workspace === "Admin") return all;
+  // Records owned by an administrator belong to no single department, so they
+  // stay visible in every workspace rather than disappearing.
+  return all.filter(d => d.department === state.workspace
+                      || d.department === "Admin" || !d.department);
 };
 
 function money(n){
@@ -3355,9 +3360,11 @@ function openQuoteForm(id, preset){
       }
     }catch(e){
       $("#q-save").disabled = false;
+      console.error("quotation save failed", e);
       box.textContent = e.code === "permission-denied"
-        ? "Couldn't issue a quote number. Ask your administrator to publish the updated security rules."
-        : e.message;
+        ? "Couldn't issue a quote number — the updated security rules haven't been published yet. "
+          + "Firebase console → Firestore → Rules → paste firestore.rules → Publish."
+        : `Couldn't save (${e.code || "error"}): ${e.message}`;
       box.classList.remove("hidden");
     }
   };
