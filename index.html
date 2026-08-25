@@ -431,6 +431,37 @@ td .lnk:hover{border-color:var(--accent);color:var(--accent)}
 .totals .row{display:flex;gap:26px;min-width:230px;justify-content:space-between}
 .totals .grand{font-size:17px;font-weight:600;border-top:1px solid var(--hair-2);padding-top:7px;margin-top:3px}
 
+/* ---------- bulk import ---------- */
+.drop{position:relative;border:1.5px dashed var(--btn-brd);border-radius:8px;padding:10px;transition:border-color .15s,background .15s}
+.drop.over{border-color:var(--accent);background:var(--accent-weak)}
+.drop textarea{
+  width:100%;min-height:190px;border:0;background:none;color:var(--text);resize:vertical;
+  font-family:var(--mono);font-size:12px;line-height:1.6;padding:6px;
+}
+.drop textarea:focus{outline:none}
+.drop-hint{font-size:11.5px;color:var(--faint);text-align:center;padding:6px 0 2px;border-top:1px solid var(--hair)}
+.lnkish{color:var(--accent);cursor:pointer;text-decoration:underline}
+.chk{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--muted);margin-top:12px}
+.chk input{width:auto}
+table.maptbl{width:100%;border-collapse:collapse}
+table.maptbl th{
+  font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--faint);text-align:left;padding:6px 8px;border-bottom:1px solid var(--hair-2);font-weight:500;
+}
+table.maptbl td{padding:6px 8px;border-bottom:1px solid var(--hair-3);vertical-align:middle}
+table.maptbl td.sample{font-family:var(--mono);font-size:11.5px;color:var(--muted);max-width:190px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+table.maptbl select{width:100%;padding:6px 9px;border:1px solid var(--input-brd);border-radius:6px;
+  background:var(--input-bg);color:var(--text)}
+table.previewtbl{width:100%;border-collapse:collapse;font-size:12.5px}
+table.previewtbl th{
+  position:sticky;top:0;z-index:1;background:var(--glass-modal);
+  font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--faint);text-align:left;padding:7px 9px;border-bottom:1px solid var(--hair-2);font-weight:500;
+}
+table.previewtbl td{padding:6px 9px;border-bottom:1px solid var(--hair-3);white-space:nowrap}
+table.previewtbl tr.rowbad td{background:var(--alert-weak)}
+
 /* ---------- quotation preview ---------- */
 .preview-scrim{z-index:90;background:rgba(4,12,22,.72);align-items:start;padding:0}
 .preview-shell{width:100%;max-width:880px;margin:0 auto;padding:0 0 40px}
@@ -1661,13 +1692,15 @@ function viewList(col){
       <option value="open"${f.due==="open"?" selected":""}>Open only</option>
     </select>`:""}
     <div style="flex:1"></div>
+    <button class="btn" data-import="${col}" title="Paste from Excel or upload a CSV">Import</button>
     <span class="eyebrow">${list.length} of ${rows(col).length}</span>
     ${col==="deals"||col==="leads"?`<span class="mono" style="font-size:12px;color:var(--muted)">${money(list.reduce((s,d)=>s+Number(d.value||d.estValue||0),0))}</span>`:""}
   </div>`;
 
   if(!list.length) return filterBar + `<div class="card"><div class="empty">
     <strong>No ${esc(S.plural.toLowerCase())} yet</strong>
-    ${state.search||f.status||f.owner ? "Nothing matches this filter." : `Add your first ${esc(S.label.toLowerCase())} with the New button.`}
+    ${state.search||f.status||f.owner ? "Nothing matches this filter."
+      : `Add your first ${esc(S.label.toLowerCase())} with the New button, or Import a whole list at once.`}
   </div></div>`;
 
   return filterBar + `<div class="card"><div class="tbl-wrap"><table>
@@ -2100,6 +2133,7 @@ function viewFiltered(routeKey){
         ${n?`<span class="mono" style="opacity:.7"> ${n}</span>`:""}</button>`;
     }).join("")}
     <div style="flex:1"></div>
+    <button class="btn" data-import="${col}">Import</button>
     <button class="btn" data-newrec="${col}">New ${esc(S.label.toLowerCase())}</button>
   </div>
   <div class="card">${list.length ? `<div class="tbl-wrap"><table>
@@ -2799,6 +2833,7 @@ function wireView(){
     state.filters[route].tab = tab; render();
   });
   v.querySelectorAll("[data-newrec]").forEach(el=> el.onclick = ()=> openForm(el.dataset.newrec));
+  v.querySelectorAll("[data-import]").forEach(el=> el.onclick = ()=> openImport(el.dataset.import));
   v.querySelectorAll("[data-tab]").forEach(el=> el.onclick = ()=>{
     state.filters.tasks.tab = el.dataset.tab; render();
   });
@@ -3661,6 +3696,357 @@ function printQuoteDoc(q){
 function printQuote(id){
   const q = state.data.quotations.get(id);
   if (q) printQuoteDoc(q);
+}
+
+/* ====================================================================
+   BULK IMPORT
+   Paste straight from Excel, or drop in a CSV. Columns are matched to
+   fields automatically where the names line up, and everything is
+   editable in the preview before a single record is written.
+   ==================================================================== */
+
+/* Splits a delimited line, honouring "quoted, fields" and doubled quotes. */
+function splitLine(line, delim){
+  const out = []; let cur = "", q = false;
+  for (let i = 0; i < line.length; i++){
+    const c = line[i];
+    if (q){
+      if (c === '"'){ if (line[i+1] === '"'){ cur += '"'; i++; } else q = false; }
+      else cur += c;
+    } else if (c === '"') q = true;
+    else if (c === delim){ out.push(cur); cur = ""; }
+    else cur += c;
+  }
+  out.push(cur);
+  return out.map(x=>x.trim());
+}
+function parseTable(text){
+  const clean = String(text||"").replace(/\r\n?/g, "\n").replace(/\n+$/,"");
+  if (!clean.trim()) return [];
+  const first = clean.split("\n")[0];
+  // Excel puts tabs on the clipboard; a saved file uses commas or semicolons.
+  const delim = first.includes("\t") ? "\t"
+              : (first.split(";").length > first.split(",").length ? ";" : ",");
+  const lines = [];
+  let buf = "", quotes = 0;
+  clean.split("\n").forEach(l=>{
+    buf = buf ? buf + "\n" + l : l;
+    quotes += (l.match(/"/g)||[]).length;
+    if (quotes % 2 === 0){ lines.push(buf); buf = ""; }        // a field may wrap lines
+  });
+  if (buf) lines.push(buf);
+  return lines.filter(l=>l.trim()).map(l=>splitLine(l, delim));
+}
+
+const norm = x => String(x||"").toLowerCase().replace(/[^a-z0-9]/g,"");
+/* Extra header wordings we should recognise beyond the field's own label. */
+const HEADER_HINTS = {
+  firstName:["firstname","first","givenname","fname","name"],
+  lastName:["lastname","last","surname","familyname","lname"],
+  accountId:["account","company","companyname","customer","organisation","organization","firm"],
+  jobTitle:["jobtitle","title","position","designation","role"],
+  email:["email","emailaddress","mail","e-mail"],
+  phone:["phone","telephone","tel","landline","contactnumber","contactno"],
+  mobile:["mobile","cell","cellphone","mobileno","mobilenumber"],
+  company:["company","companyname","business","organisation","organization"],
+  contactName:["contactname","contactperson","contact","attention","attn"],
+  name:["name","companyname","account","customer"],
+  city:["city","town","municipality","location"],
+  address:["address","street","fulladdress"],
+  website:["website","web","url","site"],
+  industry:["industry","sector","trade"],
+  notes:["notes","note","remarks","comment","comments","description"],
+  estValue:["estvalue","value","estimatedvalue","budget","amount"],
+  source:["source","leadsource","origin","channel"],
+  status:["status","stage","state"],
+  rating:["rating","priority","temperature"],
+  priority:["priority","importance"],
+  companySize:["companysize","size","headcount","employees"],
+  type:["type","category","classification"]
+};
+function guessField(header, fields){
+  const h = norm(header);
+  if (!h) return "";
+  for (const f of fields){
+    if (norm(f.l) === h || norm(f.k) === h) return f.k;          // exact first
+  }
+  for (const f of fields){
+    const hints = HEADER_HINTS[f.k] || [];
+    if (hints.includes(h)) return f.k;
+  }
+  for (const f of fields){                                       // then contains
+    if (h.length > 3 && (norm(f.l).includes(h) || h.includes(norm(f.l)))) return f.k;
+  }
+  return "";
+}
+
+/* Fields a person is allowed to fill from a spreadsheet. */
+function importableFields(col){
+  return SCHEMAS[col].fields.filter(f=>
+    !["computed","links"].includes(f.type) && f.k !== "ownerId");
+}
+
+function openImport(col){
+  const S = SCHEMAS[col];
+  const imp = { col, rows:[], headers:[], map:[], hasHeader:true, ownerId:myUid() };
+
+  modal(`
+    <div class="modal-h">
+      <div><div class="eyebrow">Bulk import</div><h3>Import ${esc(S.plural.toLowerCase())}</h3></div>
+      <button class="x" data-close aria-label="Close">×</button>
+    </div>
+    <div class="modal-b" id="imp-body"></div>
+    <div class="modal-f" id="imp-foot"></div>`, true);
+
+  /* ---------- step 1: get the data in ---------- */
+  function stepSource(){
+    $("#imp-body").innerHTML = `
+      <div id="imp-err" class="err hidden"></div>
+      <p style="margin-top:0;color:var(--muted);font-size:13px">
+        Select the cells in Excel or Google Sheets, copy, and paste below — including the header row.
+        You can also drop in a <strong>.csv</strong> file.</p>
+      <div class="drop" id="imp-drop">
+        <textarea id="imp-paste" placeholder="Paste your rows here…&#10;&#10;First name&#9;Last name&#9;Company&#9;Email&#10;Ana&#9;Reyes&#9;Northwind Metals&#9;ana@northwind.ph"></textarea>
+        <div class="drop-hint">or drop a .csv file here · <label class="lnkish">browse<input type="file" id="imp-file" accept=".csv,.tsv,.txt" hidden></label></div>
+      </div>
+      <label class="chk"><input type="checkbox" id="imp-hdr" checked> The first row contains column headings</label>`;
+    $("#imp-foot").innerHTML = `
+      <div class="spacer"></div>
+      <button class="btn" data-close>Cancel</button>
+      <button class="btn pri" id="imp-next">Continue</button>`;
+    $("#imp-foot").querySelector("[data-close]").onclick = closeModal;
+
+    const drop = $("#imp-drop");
+    ["dragenter","dragover"].forEach(ev=> drop.addEventListener(ev, e=>{
+      e.preventDefault(); drop.classList.add("over");
+    }));
+    ["dragleave","drop"].forEach(ev=> drop.addEventListener(ev, e=>{
+      e.preventDefault(); drop.classList.remove("over");
+    }));
+    drop.addEventListener("drop", e=>{
+      const f = e.dataTransfer.files[0]; if (f) readFile(f);
+    });
+    $("#imp-file").onchange = e=>{ const f = e.target.files[0]; if (f) readFile(f); };
+
+    function readFile(f){
+      if (/\.(xlsx|xls)$/i.test(f.name)){
+        showErr("Excel files can't be read directly. In Excel choose File → Save As → CSV, "
+              + "or simply select the cells, copy, and paste them into the box above.");
+        return;
+      }
+      const r = new FileReader();
+      r.onload = ()=>{ $("#imp-paste").value = r.result; toast(`Loaded ${f.name}`); };
+      r.onerror = ()=> showErr("Couldn't read that file.");
+      r.readAsText(f);
+    }
+    $("#imp-next").onclick = ()=>{
+      const table = parseTable($("#imp-paste").value);
+      if (!table.length) return showErr("Nothing to import — paste some rows first.");
+      imp.hasHeader = $("#imp-hdr").checked;
+      const width = Math.max(...table.map(r=>r.length));
+      imp.headers = imp.hasHeader
+        ? table[0].concat(Array(width).fill("")).slice(0,width)
+        : Array.from({length:width}, (_,i)=>`Column ${i+1}`);
+      imp.rows = (imp.hasHeader ? table.slice(1) : table)
+        .map(r=> Array.from({length:width}, (_,i)=> r[i] ?? ""))
+        .filter(r=> r.some(c=>String(c).trim()));
+      if (!imp.rows.length) return showErr("Found headings but no data rows beneath them.");
+      const fields = importableFields(col);
+      imp.map = imp.headers.map(h=> imp.hasHeader ? guessField(h, fields) : "");
+      stepMap();
+    };
+  }
+  function showErr(m){
+    const b = $("#imp-err"); if(!b) return toast(m,true);
+    b.textContent = m; b.classList.remove("hidden"); b.scrollIntoView({block:"nearest"});
+  }
+
+  /* ---------- step 2: match columns to fields ---------- */
+  function stepMap(){
+    const fields = importableFields(col);
+    const matched = imp.map.filter(Boolean).length;
+    $("#imp-body").innerHTML = `
+      <div id="imp-err" class="err hidden"></div>
+      <p style="margin-top:0;color:var(--muted);font-size:13px">
+        ${imp.rows.length} row${imp.rows.length===1?"":"s"} found.
+        ${matched?`I matched <strong>${matched}</strong> column${matched===1?"":"s"} for you — check them below.`
+                 :"Choose which field each column belongs to."}
+        Anything left as <em>Skip</em> is ignored.</p>
+      <table class="maptbl">
+        <thead><tr><th>Column in your file</th><th>First value</th><th>Import as</th></tr></thead>
+        <tbody>${imp.headers.map((h,i)=>`<tr>
+          <td><strong>${esc(h || "Column "+(i+1))}</strong></td>
+          <td class="sample">${esc(String(imp.rows[0]?.[i] ?? "").slice(0,44)) || "—"}</td>
+          <td><select data-map="${i}">
+            <option value="">— Skip this column —</option>
+            ${fields.map(f=>`<option value="${f.k}"${imp.map[i]===f.k?" selected":""}>${esc(f.l)}${f.req?" *":""}</option>`).join("")}
+          </select></td>
+        </tr>`).join("")}</tbody>
+      </table>
+      ${isManager()?`<div class="field" style="margin-top:16px;max-width:320px">
+        <label for="imp-owner">Assign every record to</label>
+        <select id="imp-owner">${ownerOptions(imp.ownerId)}</select>
+      </div>`:""}`;
+    $("#imp-foot").innerHTML = `
+      <button class="btn" id="imp-back">Back</button>
+      <div class="spacer"></div>
+      <button class="btn" data-close>Cancel</button>
+      <button class="btn pri" id="imp-next">Preview ${imp.rows.length} record${imp.rows.length===1?"":"s"}</button>`;
+    $("#imp-foot").querySelector("[data-close]").onclick = closeModal;
+    $("#imp-back").onclick = stepSource;
+
+    document.querySelectorAll("[data-map]").forEach(sel=> sel.onchange = ()=>{
+      const i = Number(sel.dataset.map);
+      if (sel.value && imp.map.some((v,j)=> v === sel.value && j !== i)){
+        imp.map = imp.map.map((v,j)=> (v === sel.value && j !== i) ? "" : v);
+        imp.map[i] = sel.value;
+        stepMap();                                   // a field can only be used once
+        return;
+      }
+      imp.map[i] = sel.value;
+    });
+    $("#imp-next").onclick = ()=>{
+      const req = SCHEMAS[col].fields.filter(f=>f.req).map(f=>f.k);
+      const missing = req.filter(k=> !imp.map.includes(k));
+      if (missing.length) return showErr("These are required and haven't been matched to a column: "
+        + missing.map(k=> SCHEMAS[col].fields.find(f=>f.k===k).l).join(", "));
+      if (isManager()) imp.ownerId = $("#imp-owner").value || myUid();
+      stepPreview();
+    };
+  }
+
+  /* ---------- step 3: check and fix, then write ---------- */
+  function buildRecords(){
+    const fields = importableFields(col);
+    return imp.rows.map(r=>{
+      const rec = {};
+      imp.map.forEach((k,i)=>{ if (k) rec[k] = String(r[i] ?? "").trim(); });
+      const issues = [];
+      fields.forEach(f=>{
+        const v = rec[f.k];
+        if (f.req && !v) issues.push(`${f.l} is missing`);
+        if (!v) return;
+        if (f.type === "money" || f.type === "number"){
+          const n = Number(String(v).replace(/[^0-9.\-]/g,""));
+          if (isNaN(n)) issues.push(`${f.l} isn't a number`); else rec[f.k] = n;
+        }
+        if (f.type === "date"){
+          const d = new Date(v);
+          if (isNaN(d)) issues.push(`${f.l} isn't a date`);
+          else rec[f.k] = d.toISOString().slice(0,10);
+        }
+        if (f.type === "email" && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v)) issues.push("Email looks wrong");
+        if (f.type === "select"){
+          const opts = f.optsFrom ? (state.settings[f.optsFrom]||[]) : (f.opts||[]);
+          const hit = opts.find(o=> norm(o) === norm(v));
+          if (hit) rec[f.k] = hit;                    // fix casing silently
+          else issues.push(`${f.l} "${v}" isn't one of the allowed values`);
+        }
+        if (f.type === "ref" && f.refTo && f.refTo !== "users"){
+          const match = rows(f.refTo).find(x=> norm(titleOf(f.refTo,x)) === norm(v));
+          if (match) rec[f.k] = match.id;
+          else { rec["_new_"+f.k] = v; delete rec[f.k]; }   // create it on the way in
+        }
+      });
+      return { rec, issues };
+    });
+  }
+  function stepPreview(){
+    const built = buildRecords();
+    const bad = built.filter(b=>b.issues.length).length;
+    const ok = built.length - bad;
+    const shown = imp.map.map((k,i)=>({k,i})).filter(x=>x.k);
+    const newRefs = new Set();
+    built.forEach(b=> Object.keys(b.rec).forEach(k=>{
+      if (k.startsWith("_new_")) newRefs.add(b.rec[k]);
+    }));
+
+    $("#imp-body").innerHTML = `
+      <div id="imp-err" class="err hidden"></div>
+      ${bad ? `<div class="err">${bad} row${bad===1?"":"s"} can't be imported yet — the reason is shown
+        against each one. Fix them in your spreadsheet and paste again, or import the
+        ${ok} good row${ok===1?"":"s"} now and deal with the rest separately.</div>`
+            : `<div class="ok">All ${ok} row${ok===1?"":"s"} look good.</div>`}
+      ${newRefs.size ? `<p style="font-size:12.5px;color:var(--muted)">
+        ${newRefs.size} referenced record${newRefs.size===1?"":"s"} don't exist yet and will be created:
+        ${Array.from(newRefs).slice(0,6).map(esc).join(", ")}${newRefs.size>6?"…":""}</p>`:""}
+      <div class="tbl-wrap" style="max-height:44vh;overflow:auto">
+        <table class="previewtbl">
+          <thead><tr><th style="width:34px">#</th>
+            ${shown.map(x=>`<th>${esc(SCHEMAS[col].fields.find(f=>f.k===x.k)?.l || x.k)}</th>`).join("")}
+            <th>Status</th></tr></thead>
+          <tbody>${built.map((b,n)=>`<tr class="${b.issues.length?"rowbad":""}">
+            <td class="mono" style="color:var(--faint)">${n+1}</td>
+            ${shown.map(x=>{
+              const v = b.rec[x.k] ?? b.rec["_new_"+x.k] ?? "";
+              return `<td>${esc(String(v).slice(0,40))}${b.rec["_new_"+x.k]?' <span class="pill warn">new</span>':""}</td>`;
+            }).join("")}
+            <td>${b.issues.length ? `<span class="pill alert" title="${esc(b.issues.join(" · "))}">${esc(b.issues[0])}</span>`
+                                  : `<span class="pill accent">Ready</span>`}</td>
+          </tr>`).join("")}</tbody>
+        </table>
+      </div>`;
+    $("#imp-foot").innerHTML = `
+      <button class="btn" id="imp-back">Back</button>
+      <div class="spacer"></div>
+      <button class="btn" data-close>Cancel</button>
+      <button class="btn pri" id="imp-go"${ok?"":" disabled"}>Import ${ok} record${ok===1?"":"s"}</button>`;
+    $("#imp-foot").querySelector("[data-close]").onclick = closeModal;
+    $("#imp-back").onclick = stepMap;
+    $("#imp-go").onclick = ()=> runImport(built.filter(b=>!b.issues.length));
+  }
+
+  /* ---------- write ---------- */
+  async function runImport(good){
+    const btn = $("#imp-go");
+    btn.disabled = true; btn.textContent = "Importing…";
+    const ownerId = isManager() ? imp.ownerId : myUid();
+    const dept = state.users.get(ownerId)?.department || state.profile.department;
+    const stamp = { ownerId, department:dept, createdBy:myUid(),
+                    createdAt:serverTimestamp(), updatedAt:serverTimestamp(), importedAt:serverTimestamp() };
+    const madeRefs = new Map();                       // one new account per distinct name
+    let done = 0;
+    try{
+      for (let i = 0; i < good.length; i += 200){     // batches stay well inside the limit
+        const chunk = good.slice(i, i+200);
+        const batch = writeBatch(db);
+        for (const b of chunk){
+          const rec = { ...b.rec };
+          for (const k of Object.keys(rec)){
+            if (!k.startsWith("_new_")) continue;
+            const fk = k.slice(5);
+            const f = SCHEMAS[col].fields.find(x=>x.k===fk);
+            const name = rec[k]; delete rec[k];
+            if (!f || !name) continue;
+            const cacheKey = f.refTo + ":" + norm(name);
+            if (!madeRefs.has(cacheKey)){
+              const ref = doc(collection(db, f.refTo));
+              const title = SCHEMAS[f.refTo].titleField;
+              batch.set(ref, { ...stamp, [title]: name,
+                ...(f.refTo === "accounts" ? { type:"Prospect" } : {}) });
+              madeRefs.set(cacheKey, ref.id);
+            }
+            rec[fk] = madeRefs.get(cacheKey);
+          }
+          batch.set(doc(collection(db, col)), { ...stamp, ...rec });
+        }
+        await batch.commit();
+        done += chunk.length;
+        btn.textContent = `Importing… ${done}/${good.length}`;
+      }
+      closeModal();
+      toast(`Imported ${done} ${done===1?SCHEMAS[col].label.toLowerCase():SCHEMAS[col].plural.toLowerCase()}`
+            + (madeRefs.size ? ` and created ${madeRefs.size} linked record${madeRefs.size===1?"":"s"}` : ""));
+    }catch(e){
+      console.error("import failed", e);
+      btn.disabled = false; btn.textContent = "Try again";
+      showErr(e.code === "permission-denied"
+        ? "You don't have permission to create these records."
+        : `Import stopped after ${done} record${done===1?"":"s"}: ${e.message}`);
+    }
+  }
+
+  stepSource();
 }
 
 /* ---- add / edit a person (admin) ---- */
