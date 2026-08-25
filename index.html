@@ -1740,6 +1740,38 @@ function isToday(v){ const d=toDate(v); if(!d) return false;
   const n=new Date(); return d.toDateString() === n.toDateString(); }
 
 /* A quote past its validity reads as Expired without anyone editing it. */
+const stageIndex = k => STAGES.findIndex(x=>x.key===k);
+/* What a quote status implies for the opportunity behind it. */
+const QUOTE_DRIVES_STAGE = {
+  "Sent":     { stage:"Proposal Sent", auto:true  },
+  "Viewed":   { stage:"Proposal Sent", auto:true  },
+  "Approved": { stage:"Won",           auto:false, ask:"Mark the opportunity as Won?" },
+  "Declined": { stage:"Lost",          auto:false, ask:"Mark the opportunity as Lost?" }
+};
+
+/* Moves the linked deal along when a quote changes status. Only ever moves
+   forward on its own; Won and Lost always ask first. */
+async function syncDealFromQuote(q, status){
+  const rule = QUOTE_DRIVES_STAGE[status];
+  if (!rule || !q.dealId) return;
+  const d = state.data.deals.get(q.dealId);
+  if (!d || d.stage === rule.stage) return;
+  if (!OPEN_STAGES.includes(d.stage)) return;              // already closed, leave it
+  if (rule.auto && stageIndex(d.stage) >= stageIndex(rule.stage)) return;   // never go backwards
+  if (!rule.auto && !confirm(`${rule.ask}\n\n${d.title} — ${money(d.value)}`)) return;
+
+  const patch = { stage:rule.stage, probability:stageProb(rule.stage),
+                  stageChangedAt:serverTimestamp(), updatedAt:serverTimestamp() };
+  if (!OPEN_STAGES.includes(rule.stage)) patch.closedAt = serverTimestamp();
+  if (rule.stage === "Won" && Number(q.total) && Number(q.total) !== Number(d.value))
+    patch.value = Number(q.total);                          // the accepted figure is the real one
+  if (rule.stage === "Lost") patch.lostReason = d.lostReason || "Lost to competitor";
+  try{
+    await updateDoc(doc(db,"deals",q.dealId), patch);
+    toast(`${d.title} moved to ${rule.stage}`);
+  }catch(e){ console.warn("deal sync", e); }
+}
+
 function quoteStatus(q){
   if (["Approved","Declined","Expired"].includes(q.status)) return q.status;
   const n = daysUntil(q.validUntil);
@@ -2496,6 +2528,12 @@ function viewPipeline(){
               <div class="acct">${esc(recordTitle("accounts",d.accountId))}</div>
               <div class="ft">
                 <span class="v">${money(d.value)}</span>
+                ${(()=>{ const qs = rows("quotations").filter(x=>x.dealId===d.id);
+                   if (!qs.length) return "";
+                   const ap = qs.some(x=>quoteStatus(x)==="Approved");
+                   const open = qs.filter(x=>["Sent","Viewed"].includes(quoteStatus(x))).length;
+                   return `<span class="pill ${ap?"accent":open?"info":""}" title="${qs.length} quotation${qs.length===1?"":"s"}">❑ ${qs.length}</span>`;
+                 })()}
                 ${isManager()?`<span class="pill">${esc(initials(userName(d.ownerId)))}</span>`:""}
                 <span class="ag ${ac===3?"d":ac===2?"w":""}">${age}d</span>
               </div>
@@ -2806,6 +2844,10 @@ function wireView(){
           status: el.value, statusChangedAt: serverTimestamp(), updatedAt: serverTimestamp()
         });
         toast(`Marked ${el.value}`);
+        if (col === "quotations"){
+          const q = state.data.quotations.get(id);
+          if (q) await syncDealFromQuote({ ...q, status: el.value }, el.value);
+        }
       }catch(e){
         if (prev) el.value = prev;
         toast(e.code === "permission-denied" ? "You can't change this one" : e.message, true);
@@ -3050,6 +3092,7 @@ function openDetail(col,id){
         <div class="r"><div class="k">Last touched</div><div class="v mono" style="font-size:12.5px">${fmtDate(d.updatedAt)}</div></div>
       </div>
       ${col === "accounts" ? purchaseHistory(id) : ""}
+      ${col === "deals" ? dealQuotes(id) : ""}
       <div style="margin-top:20px">
         <div class="card-h" style="padding-left:0;padding-right:0"><h3>Activity</h3><div class="spacer"></div>
           <button class="btn sm" id="log-act">Log activity</button></div>
@@ -3075,6 +3118,12 @@ function openDetail(col,id){
   $("#log-act").onclick = ()=>{
     closeModal();
     openForm("activities", null, { relatedType:S.label, relatedId:id, dueDate:todayISO() });
+  };
+  const nq = document.querySelector("#new-quote-here");
+  if (nq) nq.onclick = ()=>{
+    closeModal();
+    openQuoteForm(null, { dealId:id, accountId:d.accountId, contactId:d.contactId,
+                          title:d.title, ownerId:d.ownerId });
   };
   document.querySelectorAll("[data-quickdone]").forEach(b=> b.onclick = async ()=>{
     await markDone(b.dataset.quickdone); closeModal();
@@ -3197,6 +3246,33 @@ function purchaseHistory(accountId){
   </div>`;
 }
 
+/* ---- quotations raised against an opportunity ---- */
+function dealQuotes(dealId){
+  const qs = rows("quotations").filter(q=>q.dealId===dealId)
+    .sort((a,b)=>toDate(b.issueDate)-toDate(a.issueDate));
+  const live = qs.filter(q=>["Draft","Sent","Viewed"].includes(quoteStatus(q)));
+  const won  = qs.find(q=>quoteStatus(q)==="Approved");
+  return `
+  <div style="margin-top:20px">
+    <div class="card-h" style="padding-left:0;padding-right:0">
+      <h3>Quotations</h3><div class="spacer"></div>
+      <span class="eyebrow">${qs.length ? `${live.length} open${won?" · 1 approved":""}` : "none yet"}</span>
+      <button class="btn sm" id="new-quote-here">New quotation</button>
+    </div>
+    ${qs.length ? `<div class="tbl-wrap"><table><tbody>
+      ${qs.map(q=>`<tr>
+        <td><span class="lnk" data-open="quotations:${q.id}">${esc(q.quoteNo)}</span>
+          <div style="font-size:11.5px;color:var(--muted)">${esc(q.title||"")}</div></td>
+        <td class="num">${money(q.total)}</td>
+        <td class="num mono" style="font-size:12px">${fmtDate(q.issueDate)}</td>
+        <td class="num">${pillFor("status", quoteStatus(q))}</td>
+      </tr>`).join("")}
+    </tbody></table></div>`
+    : `<p style="color:var(--muted);font-size:13px;margin:8px 0">
+        No quotation raised yet. Sending one moves this opportunity to Proposal Sent.</p>`}
+  </div>`;
+}
+
 /* ---- quotations: line items, totals, and a printable copy ---- */
 /* Which department's series a quote belongs to — the owner's department,
    so a manager raising a quote for a rep still numbers it correctly. */
@@ -3237,7 +3313,7 @@ function itemRow(i, it={}){
   </tr>`;
 }
 function openQuoteForm(id, preset){
-  const q = id ? { ...state.data.quotations.get(id) } : (preset || {});
+  const q = id ? { ...state.data.quotations.get(id) } : { ...(preset || {}) };
   let items = Array.isArray(q.items) && q.items.length ? [...q.items] : [{desc:"",qty:1,price:""}];
   const accts = rows("accounts").sort((a,b)=>(a.name||"").localeCompare(b.name||""));
   const dls   = rows("deals").sort((a,b)=>(a.title||"").localeCompare(b.title||""));
@@ -3266,8 +3342,12 @@ function openQuoteForm(id, preset){
           <select id="q-contact"><option value="">—</option>
             ${cts.map(c=>`<option value="${c.id}"${c.id===q.contactId?" selected":""}>${esc(titleOf("contacts",c))}</option>`).join("")}</select></div>
         <div class="field"><label for="q-deal">Linked opportunity</label>
-          <select id="q-deal"><option value="">—</option>
-            ${dls.map(d=>`<option value="${d.id}"${d.id===q.dealId?" selected":""}>${esc(d.title)}</option>`).join("")}</select></div>
+          <select id="q-deal">
+            <option value="">— None —</option>
+            <option value="__new__"${q.dealId==="__new__"?" selected":""}>+ Create a new opportunity from this quote</option>
+            ${dls.map(d=>`<option value="${d.id}"${d.id===q.dealId?" selected":""}>${esc(d.title)} — ${esc(d.stage)}</option>`).join("")}
+          </select>
+          <span class="hint" id="q-deal-hint"></span></div>
         <div class="field"><label for="q-owner">Owner</label>
           <select id="q-owner"${isManager()?"":" disabled"}>
             ${isManager()?ownerOptions(q.ownerId||myUid()):`<option value="${myUid()}">${esc(state.profile.displayName||"You")}</option>`}</select></div>
@@ -3368,6 +3448,16 @@ function openQuoteForm(id, preset){
     $("#q-no").value = projectedQuoteNo(dept, $("#q-issue").value);
     hint.textContent = `${dept} series. Confirmed when you save — if a colleague saves first, you'll get the next one.`;
   }
+  function dealHint(){
+    const v = $("#q-deal").value;
+    const h = $("#q-deal-hint");
+    if (v === "__new__") h.textContent = "An opportunity will be created with this quote's customer and total.";
+    else if (v) h.textContent = "Sending this quote moves the opportunity to Proposal Sent; approving it can close the deal.";
+    else h.textContent = "Link one so the pipeline follows this quote automatically.";
+  }
+  $("#q-deal").onchange = dealHint;
+  dealHint();
+
   $("#q-issue").onchange = refreshNumber;
   const ownerSel = document.querySelector("#q-owner");
   if (ownerSel) ownerSel.onchange = refreshNumber;
@@ -3423,23 +3513,47 @@ function openQuoteForm(id, preset){
     $("#q-save").disabled = true;
     try{
       if (id){
+        const before = state.data.quotations.get(id)?.status;
+        if (payload.dealId === "__new__") payload.dealId = null;
         await updateDoc(doc(db,"quotations",id), payload);   // number is never rewritten
         closeModal(); toast("Quotation saved");
+        if (payload.status !== before)
+          await syncDealFromQuote({ ...payload, total:t.total }, payload.status);
       } else {
         const key = counterKey(quoteDeptOf(ownerId), payload.issueDate);
-        const issued = await runTransaction(db, async tx=>{
+        const makeDeal = payload.dealId === "__new__";
+        const dept = state.users.get(ownerId)?.department || state.profile.department;
+        const result = await runTransaction(db, async tx=>{
           const cref = doc(db,"counters",key);
           const snap = await tx.get(cref);
           const n = snap.exists() ? Number(snap.data().next||1) : 1;
           const quoteNo = formatQuoteNo(key, n);
           tx.set(cref, { next:n+1, department:quoteDeptOf(ownerId), updatedAt:serverTimestamp() }, { merge:true });
+
+          let dealId = makeDeal ? null : payload.dealId;
+          if (makeDeal){
+            const dref = doc(collection(db,"deals"));
+            const stage = ["Sent","Viewed"].includes(payload.status) ? "Proposal Sent" : "Qualified";
+            tx.set(dref, {
+              title: payload.title, accountId: payload.accountId, contactId: payload.contactId,
+              value: t.total, stage, probability: stageProb(stage),
+              expectedCloseDate: payload.validUntil || null,
+              ownerId, department:dept, createdBy:myUid(),
+              stageChangedAt: serverTimestamp(), createdAt: serverTimestamp(), updatedAt: serverTimestamp()
+            });
+            dealId = dref.id;
+          }
           tx.set(doc(collection(db,"quotations")), {
-            ...payload, quoteNo, seriesKey:key, seriesNo:n,
+            ...payload, dealId, quoteNo, seriesKey:key, seriesNo:n,
             createdAt:serverTimestamp(), createdBy:myUid()
           });
-          return quoteNo;
+          return { quoteNo, dealId, madeDeal:makeDeal };
         });
-        closeModal(); toast("Quotation " + issued + " created");
+        closeModal();
+        toast("Quotation " + result.quoteNo + " created"
+              + (result.madeDeal ? " with a new opportunity" : ""));
+        if (!result.madeDeal && result.dealId)
+          await syncDealFromQuote({ ...payload, dealId:result.dealId, total:t.total }, payload.status);
       }
     }catch(e){
       $("#q-save").disabled = false;
