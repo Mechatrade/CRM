@@ -1734,6 +1734,7 @@ function viewList(col){
     </select>`:""}
     <div style="flex:1"></div>
     <button class="btn" data-import="${col}" title="Paste from Excel or upload a CSV">Import</button>
+    ${col==="quotations" ? seriesBadge() : ""}
     <span class="eyebrow">${list.length} of ${rows(col).length}</span>
     ${col==="deals"||col==="leads"?`<span class="mono" style="font-size:12px;color:var(--muted)">${money(list.reduce((s,d)=>s+Number(d.value||d.estValue||0),0))}</span>`:""}
   </div>`;
@@ -1772,6 +1773,25 @@ function titleOf(col,d){
 /* ------------------------------------------------------------------ */
 /* 11b. SALES HELPERS                                                  */
 /* ------------------------------------------------------------------ */
+/* A quiet note of any numbers waiting to be reused, and of real gaps —
+   sequences that were skipped and never filled. */
+function seriesBadge(){
+  const keys = new Set(Array.from(state.counters.keys()));
+  rows("quotations").forEach(q=>{ const sr = seriesOf(q); if (sr) keys.add(sr.key); });
+  let free = 0, gaps = 0;
+  keys.forEach(k=>{
+    free += releasedNumbers(k).length;
+    const used = new Set(rows("quotations").map(seriesOf).filter(x=>x && x.key===k).map(x=>x.no));
+    const next = Number(state.counters.get(k)?.next || 1);
+    for (let i=1;i<next;i++) if (!used.has(i) && !releasedNumbers(k).includes(i)) gaps++;
+  });
+  if (!free && !gaps) return "";
+  return `<span class="pill ${free?"accent":"warn"}" title="${
+    free?`${free} number${free===1?"":"s"} will be reused before a new one is taken`:""}${
+    free&&gaps?" · ":""}${gaps?`${gaps} number${gaps===1?"":"s"} retired and not reusable`:""}">
+    ${free?`${free} to reuse`:""}${free&&gaps?" · ":""}${gaps?`${gaps} gap${gaps===1?"":"s"}`:""}</span>`;
+}
+
 function openQuoteCount(){            // declared, so the NAV table can use it
   return rows("quotations").filter(q=>["Draft","Sent","Viewed"].includes(quoteStatus(q))).length;
 }
@@ -3448,7 +3468,7 @@ function dependentsOf(col, id){
 }
 
 /* Delete with its attachments handled, rather than quietly orphaning them. */
-async function deleteRecord(col, id){
+async function deleteRecord(col, id, opts = {}){
   const S = SCHEMAS[col];
   const deps = dependentsOf(col, id);
   const total = deps.reduce((n,d)=>n+d.hits.length,0);
@@ -3470,8 +3490,20 @@ async function deleteRecord(col, id){
     batch.delete(doc(db, col, id));
     deps.forEach(d=> d.hits.forEach(h=> batch.delete(doc(db, d.col, h.id))));
     await batch.commit();
-    toast(total ? `${S.label} deleted with ${total} attached record${total===1?"":"s"}`
-                : `${S.label} deleted`);
+    // a deleted quotation gives its number back, so the series stays unbroken
+    const freed = [];
+    if (col === "quotations" && opts.reclaim !== false){
+      const q = state.data.quotations.get(id);
+      if (q && quoteStatus(q) === "Draft" && await releaseQuoteNumber(q)) freed.push(q.quoteNo);
+    }
+    for (const d of deps.filter(d=>d.col === "quotations")){
+      for (const h of d.hits){
+        if (quoteStatus(h) === "Draft" && await releaseQuoteNumber(h)) freed.push(h.quoteNo);
+      }
+    }
+    toast((total ? `${S.label} deleted with ${total} attached record${total===1?"":"s"}`
+                 : `${S.label} deleted`)
+          + (freed.length ? ` · ${freed.length} number${freed.length===1?"":"s"} freed` : ""));
     return true;
   }catch(e){
     console.error("delete failed", e);
@@ -3480,6 +3512,34 @@ async function deleteRecord(col, id){
       : `Couldn't delete: ${e.message}`, true);
     return false;
   }
+}
+
+/* Puts a deleted quotation's number back in the pool so the series has no
+   gap. A quote that never left the office can always be reclaimed; one the
+   customer has already seen is only reclaimed if you say so, because two
+   documents sharing a number is worse than a gap. */
+async function releaseQuoteNumber(q){
+  const sr = seriesOf(q);
+  if (!sr) return false;
+  try{
+    await runTransaction(db, async tx=>{
+      const cref = doc(db,"counters",sr.key);
+      const snap = await tx.get(cref);
+      const cur = snap.exists() ? snap.data() : {};
+      const free = new Set((Array.isArray(cur.released)?cur.released:[]).map(Number));
+      const next = Number(cur.next || 1);
+      if (sr.no === next - 1){
+        // it was the most recent — just wind the counter back
+        tx.set(cref, { next: next - 1, released:[...free].filter(x=>x < next-1),
+                       updatedAt:serverTimestamp() }, { merge:true });
+      } else if (sr.no < next){
+        free.add(sr.no);
+        tx.set(cref, { next, released:[...free].sort((a,b)=>a-b),
+                       updatedAt:serverTimestamp() }, { merge:true });
+      }
+    });
+    return true;
+  }catch(e){ console.warn("release number", e); return false; }
 }
 
 /* ---- purchase history for a customer ---- */
@@ -3565,11 +3625,24 @@ function counterKey(dept, isoDate){
   return `${QUOTE_ROOT}-${QUOTE_PREFIX[dept] || "ADM"}-${yr}-${mo}`;
 }
 function formatQuoteNo(key, n){ return `${key}-${String(n).padStart(5,"0")}`; }
+/* Numbers freed up when a quotation was deleted, lowest first. */
+function releasedNumbers(key){
+  const r = state.counters.get(key)?.released;
+  return Array.isArray(r) ? [...r].map(Number).filter(n=>n>0).sort((a,b)=>a-b) : [];
+}
 /* What the next number will be, for display only. The real one is issued
    inside a transaction at save time so two people can't take the same one. */
 function projectedQuoteNo(dept, isoDate){
   const key = counterKey(dept, isoDate);
-  return formatQuoteNo(key, state.counters.get(key)?.next || 1);
+  const free = releasedNumbers(key);
+  return formatQuoteNo(key, free.length ? free[0] : (state.counters.get(key)?.next || 1));
+}
+/* Split a quote number back into its series and sequence, for older
+   quotations saved before those were stored as fields. */
+function seriesOf(q){
+  if (q.seriesKey && q.seriesNo) return { key:q.seriesKey, no:Number(q.seriesNo) };
+  const m = String(q.quoteNo||"").match(/^(.*)-(\d+)$/);
+  return m ? { key:m[1], no:Number(m[2]) } : null;
 }
 function quoteTotals(items, discountPct, taxPct){
   const sub = items.reduce((s,i)=>s + Number(i.qty||0) * Number(i.price||0), 0);
@@ -3724,8 +3797,13 @@ function openQuoteForm(id, preset){
     if (id){ hint.textContent = "Numbers can't be changed once issued."; return; }
     const owner = isManager() ? ($("#q-owner").value || myUid()) : myUid();
     const dept = quoteDeptOf(owner);
+    const key = counterKey(dept, $("#q-issue").value);
+    const free = releasedNumbers(key);
     $("#q-no").value = projectedQuoteNo(dept, $("#q-issue").value);
-    hint.textContent = `${dept} series. Confirmed when you save — if a colleague saves first, you'll get the next one.`;
+    hint.innerHTML = free.length
+      ? `Reusing a number freed up when a quotation was deleted, so the ${esc(dept)} series has no gap.`
+        + (free.length>1?` ${free.length-1} more to reuse after this.`:"")
+      : `${esc(dept)} series. Confirmed when you save — if a colleague saves first, you'll get the next one.`;
   }
   function dealHint(){
     const v = $("#q-deal").value;
@@ -3762,7 +3840,21 @@ function openQuoteForm(id, preset){
 
   const del = document.querySelector("#q-del");
   if (del) del.onclick = async ()=>{
-    if (await deleteRecord("quotations", id)) closeModal();
+    const live = state.data.quotations.get(id);
+    const sent = live && !["Draft"].includes(quoteStatus(live));
+    let reclaim = true;
+    if (sent){
+      reclaim = confirm(
+        `${live.quoteNo} has already been marked ${quoteStatus(live)}.\n\n`
+        + `OK — delete it and free the number for the next quotation.\n`
+        + `Cancel — delete it but retire the number, leaving a gap in the series.\n\n`
+        + `Only reuse it if this quotation never actually reached the customer.`);
+    }
+    if (await deleteRecord("quotations", id)){
+      if (reclaim && live && await releaseQuoteNumber(live))
+        toast(`${live.quoteNo} is free to use again`);
+      closeModal();
+    }
   };
 
   $("#q-save").onclick = async ()=>{
@@ -3804,9 +3896,15 @@ function openQuoteForm(id, preset){
         const result = await runTransaction(db, async tx=>{
           const cref = doc(db,"counters",key);
           const snap = await tx.get(cref);
-          const n = snap.exists() ? Number(snap.data().next||1) : 1;
+          const cur = snap.exists() ? snap.data() : {};
+          const free = (Array.isArray(cur.released) ? cur.released : [])
+            .map(Number).filter(x=>x>0).sort((a,b)=>a-b);
+          let n, nextVal = Number(cur.next || 1);
+          if (free.length) n = free.shift();          // fill the gap before taking a new one
+          else { n = nextVal; nextVal = n + 1; }
           const quoteNo = formatQuoteNo(key, n);
-          tx.set(cref, { next:n+1, department:quoteDeptOf(ownerId), updatedAt:serverTimestamp() }, { merge:true });
+          tx.set(cref, { next:nextVal, released:free,
+            department:quoteDeptOf(ownerId), updatedAt:serverTimestamp() }, { merge:true });
 
           let dealId = makeDeal ? null : payload.dealId;
           if (makeDeal){
