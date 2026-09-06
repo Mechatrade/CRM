@@ -431,6 +431,18 @@ td .lnk:hover{border-color:var(--accent);color:var(--accent)}
 .totals .row{display:flex;gap:26px;min-width:230px;justify-content:space-between}
 .totals .grand{font-size:17px;font-weight:600;border-top:1px solid var(--hair-2);padding-top:7px;margin-top:3px}
 
+/* ---------- customer registry ---------- */
+.dupegroup{
+  border:1px solid var(--alert-weak);border-left:3px solid var(--alert);border-radius:6px;
+  padding:8px 10px;margin-bottom:9px;background:var(--alert-weak);
+}
+.dupe{display:flex;align-items:center;gap:10px;padding:4px 0;flex-wrap:wrap}
+.othernotes{margin-top:8px;display:flex;flex-direction:column;gap:6px}
+.othernotes > div{
+  display:flex;gap:8px;align-items:flex-start;font-size:12px;color:var(--muted);
+  padding:6px 8px;background:var(--line-2);border-radius:5px;
+}
+
 /* ---------- bulk import ---------- */
 .drop{position:relative;border:1.5px dashed var(--btn-brd);border-radius:8px;padding:10px;transition:border-color .15s,background .15s}
 .drop.over{border-color:var(--accent);background:var(--accent-weak)}
@@ -865,8 +877,10 @@ const SCHEMAS = {
       { k:"city",     l:"City",         type:"text",   table:true },
       { k:"address",  l:"Address",      type:"text",   full:true },
       { k:"ownerId",  l:"Owner",        type:"ref",    refTo:"users", table:true, assignOnly:true },
+      { k:"accountManagerId", l:"Account manager", type:"ref", refTo:"users", table:true },
       { k:"documents",l:"Documents",    type:"links",  full:true },
-      { k:"notes",    l:"Notes",        type:"textarea", full:true }
+      { k:"notes",    l:"Shared notes", type:"textarea", full:true },
+      { k:"deptNotes",l:"Your department's notes", type:"deptnotes", full:true }
     ]
   },
   contacts: {
@@ -1021,6 +1035,7 @@ const esc = s => String(s??"").replace(/[&<>"']/g, c=>({ "&":"&amp;","<":"&lt;",
    account and contact names keep resolving across departments. */
 const rows = c => {
   const all = Array.from(state.data[c].values());
+  if (SHARED_COLLECTIONS.includes(c)) return all;      // one registry for everyone
   if (!state.workspace || state.workspace === "Admin") return all;
   // Records owned by an administrator belong to no single department, so they
   // stay visible in every workspace rather than disappearing.
@@ -1192,15 +1207,21 @@ function paintMe(){
 /*    Queries are shaped to match the security rules exactly, so a     */
 /*    staff member's browser never even asks for other people's rows.  */
 /* ------------------------------------------------------------------ */
+/* Customers and their contacts are one shared registry, so a company is a
+   single record no matter which department first met them. Everything else
+   stays scoped to the person or their department. */
+const SHARED_COLLECTIONS = ["accounts","contacts"];
 function scopeQueries(col){
   const base = collection(db, col);
-  if (isAdmin()) return [ query(base) ];
+  if (isAdmin() || SHARED_COLLECTIONS.includes(col)) return [ query(base) ];
   const qs = [];
   if (state.profile.tier === "manager")
     qs.push(query(base, where("department","==", state.profile.department)));
   else
     qs.push(query(base, where("ownerId","==", myUid())));
   qs.push(query(base, where("createdBy","==", myUid())));       // leads you sourced, then handed over
+  // anything raised against a customer you manage, whoever created it
+  qs.push(query(base, where("accountManagerId","==", myUid())));
   if (col === "deals") qs.push(query(base, where("sourcedBy","==", myUid())));
   return qs;
 }
@@ -1317,6 +1338,10 @@ const NAV = [
     { id:"quotations",label:"Quotations",icon:"❑", depts:["Marketing"], count:openQuoteCount }
   ]},
 
+  { group:"Administration", admin:true, items:[
+    { id:"registry", label:"Customer registry", icon:"▦",
+      count:()=>rows("accounts").filter(a=>!a.accountManagerId).length }
+  ]},
   { group:"Insight", items:[
     { id:"performance", label:"Performance", icon:"◭", depts:["Sales","Business Development"] },
     { id:"reports",     label:"Reports",     icon:"◫" }
@@ -1384,7 +1409,7 @@ const NEW_FOR = { leads:"leads", pipeline:"deals", accounts:"accounts", contacts
                   quotations:"quotations", tasks:"activities", calendar:"activities",
                   intel:"intel", content:"content", assets:"assets",
                   prospects:"accounts", partners:"accounts", projects:"deals", engagement:"activities",
-                  events:"campaigns" };
+                  events:"campaigns", registry:"accounts" };
 $("#new-btn").onclick = ()=>{
   if (state.route === "team")     return openUserForm();
   if (state.route === "settings") return setRoute("team");
@@ -1401,7 +1426,8 @@ const TITLES = { dashboard:"Dashboard", leads:"Leads", pipeline:"Opportunities",
                  prospects:"Prospect companies", partners:"Partnership management",
                  projects:"Project opportunities", engagement:"Client engagement",
                  intel:"Market intelligence", forecast:"Pipeline forecast",
-                 content:"Content plan", assets:"Marketing assets", events:"Events" };
+                 content:"Content plan", assets:"Marketing assets", events:"Events",
+                 registry:"Customer registry" };
 function render(){
   if(!state.profile) return;
   $("#view-title").textContent = TITLES[state.route] || "Mechatrade";
@@ -1413,6 +1439,7 @@ function render(){
     case "tasks":      v.innerHTML = viewTasks();     break;
     case "calendar":   v.innerHTML = viewCalendar();  break;
     case "performance":v.innerHTML = viewPerformance(); break;
+    case "registry":   v.innerHTML = viewRegistry();    break;
     case "forecast":   v.innerHTML = viewForecast();    break;
     case "prospects":
     case "partners":
@@ -1448,6 +1475,14 @@ function recordTitle(col, id){
 }
 function cell(col,f,d){
   const v = d[f.k];
+  if (f.type === "deptnotes"){
+    const all = d.deptNotes || {};
+    const keys = Object.keys(all).filter(k=>all[k]);
+    if (!keys.length) return "—";
+    return keys.map(k=>`<div style="margin-bottom:6px">
+      <span class="pill ${DEPT_CLASS[k]||""}">${esc(k)}</span>
+      <div style="margin-top:3px;white-space:pre-wrap">${esc(all[k])}</div></div>`).join("");
+  }
   if (f.type === "computed"){
     if (f.k === "expectedRevenue")
       return `<span class="mono">${money(Number(d.value||0) * stageProb(d.stage)/100)}</span>`;
@@ -1617,6 +1652,7 @@ function viewGenericDashboard(){
     </div>
   </div>
 
+  ${accountAlertCard()}
   ${isManager() ? teamSnapshot() : ""}
   `;
 }
@@ -1911,6 +1947,7 @@ function viewSalesDashboard(){
     </div>
   </div>
 
+  ${accountAlertCard()}
   ${isManager() ? teamSnapshot() : ""}`;
 }
 
@@ -2110,6 +2147,152 @@ function viewPerformance(){
 }
 
 /* ------------------------------------------------------------------ */
+/* 11f2. CUSTOMER REGISTRY + CROSS-DEPARTMENT ACTIVITY                 */
+/* ------------------------------------------------------------------ */
+
+/* Strips punctuation and the usual company suffixes so "Cebu Foods Inc."
+   and "CEBU FOODS, INC" are recognised as the same company. */
+const COMPANY_NOISE = /\b(inc|incorporated|corp|corporation|co|company|ltd|limited|llc|plc|ent|enterprises|trading|industries|industrial|solutions|services|phils|philippines|ph)\b/g;
+function companyKey(name){
+  return String(name||"").toLowerCase()
+    .replace(/[^a-z0-9\s]/g," ").replace(COMPANY_NOISE," ")
+    .replace(/\s+/g," ").trim();
+}
+function duplicateGroups(){
+  const byKey = new Map();
+  rows("accounts").forEach(a=>{
+    const k = companyKey(a.name);
+    if (!k) return;
+    byKey.set(k, [...(byKey.get(k)||[]), a]);
+  });
+  return Array.from(byKey.values()).filter(g=>g.length>1);
+}
+
+/* Anything raised against a customer I manage, by somebody else. */
+function activityOnMyAccounts(){
+  const mine = new Set(rows("accounts").filter(a=>a.accountManagerId===myUid()).map(a=>a.id));
+  if (!mine.size) return [];
+  const out = [];
+  ["quotations","deals","activities"].forEach(col=>{
+    rows(col).forEach(r=>{
+      if (!mine.has(r.accountId)) return;
+      if (r.ownerId === myUid()) return;                  // my own work isn't news
+      out.push({ col, r });
+    });
+  });
+  return out.sort((a,b)=> toDate(b.r.createdAt) - toDate(a.r.createdAt));
+}
+function accountAlertCard(){
+  const list = activityOnMyAccounts();
+  if (!list.length) return "";
+  return `
+  <div class="card" style="margin-top:14px;border-left:3px solid var(--accent)">
+    <div class="card-h"><h3>Activity on your customers</h3><div class="spacer"></div>
+      <span class="eyebrow">raised by other departments</span></div>
+    <div class="tbl-wrap"><table><tbody>
+      ${list.slice(0,8).map(({col,r})=>`<tr>
+        <td style="width:96px">${pillFor("type", SCHEMAS[col].label)}</td>
+        <td><span class="lnk" data-open="${col}:${r.id}">${esc(titleOf(col,r))}</span>
+          <div style="font-size:11.5px;color:var(--muted)">
+            ${esc(recordTitle("accounts", r.accountId))} · ${esc(userName(r.ownerId))}
+            ${r.department?` · ${esc(r.department)}`:""}</div></td>
+        <td class="num">${r.total||r.value ? money(r.total||r.value) : ""}</td>
+        <td class="num mono" style="font-size:12px">${fmtDate(r.createdAt)}</td>
+      </tr>`).join("")}
+    </tbody></table></div>
+  </div>`;
+}
+
+function viewRegistry(){
+  const f = state.filters.registry || (state.filters.registry = { tab:"all" });
+  const accts = rows("accounts");
+  const dupes = duplicateGroups();
+  const dupeIds = new Set(dupes.flat().map(a=>a.id));
+
+  const enrich = a => {
+    const dl = rows("deals").filter(d=>d.accountId===a.id);
+    const qs = rows("quotations").filter(q=>q.accountId===a.id);
+    const won = dl.filter(d=>d.stage==="Won");
+    const depts = new Set([...dl, ...qs, ...rows("contacts").filter(c=>c.accountId===a.id)]
+      .map(x=>x.department).filter(Boolean));
+    return { a, deals:dl.length, quotes:qs.length,
+             open:dl.filter(d=>OPEN_STAGES.includes(d.stage)).reduce((s,d)=>s+Number(d.value||0),0),
+             revenue:won.reduce((s,d)=>s+Number(d.value||0),0),
+             contacts:rows("contacts").filter(c=>c.accountId===a.id).length,
+             depts:Array.from(depts) };
+  };
+
+  const TABS = [
+    ["all",       "All customers",     ()=>accts],
+    ["unassigned","No account manager",()=>accts.filter(a=>!a.accountManagerId)],
+    ["shared",    "Worked by 2+ teams",()=>accts.filter(a=>enrich(a).depts.length>1)],
+    ["dupes",     "Possible duplicates",()=>dupes.flat()]
+  ];
+  const tab = TABS.find(t=>t[0]===f.tab) || TABS[0];
+  let list = tab[2]().filter(a=>matches(a,"accounts")).map(enrich);
+  list.sort((x,y)=> y.revenue - x.revenue || (x.a.name||"").localeCompare(y.a.name||""));
+
+  return `
+  <div class="toolbar">
+    ${TABS.map(([k,l,fn])=>{
+      const n = fn().length;
+      return `<button class="btn ${f.tab===k?"pri":""}" data-rtab="${k}">${esc(l)}
+        ${n?`<span class="mono" style="opacity:.7"> ${n}</span>`:""}</button>`;
+    }).join("")}
+    <div style="flex:1"></div>
+    <button class="btn" data-import="accounts">Import</button>
+    <button class="btn" data-newrec="accounts">New customer</button>
+  </div>
+
+  ${f.tab==="dupes" && dupes.length ? `<div class="card" style="margin-bottom:14px">
+    <div class="card-h"><h3>Likely the same company</h3><div class="spacer"></div>
+      <span class="eyebrow">${dupes.length} group${dupes.length===1?"":"s"}</span></div>
+    <div style="padding:6px 16px 14px">
+      ${dupes.map(g=>`<div class="dupegroup">
+        ${g.map(a=>`<div class="dupe">
+          <span class="lnk" data-open="accounts:${a.id}">${esc(a.name)}</span>
+          <span class="pill ${DEPT_CLASS[a.department]||""}">${esc(a.department||"—")}</span>
+          <span style="color:var(--muted);font-size:12px">${esc(userName(a.accountManagerId||a.ownerId))}</span>
+          <span style="color:var(--faint);font-size:11.5px;margin-left:auto">
+            ${rows("deals").filter(d=>d.accountId===a.id).length} deals ·
+            ${rows("contacts").filter(c=>c.accountId===a.id).length} contacts</span>
+          <button class="btn sm" data-edit="accounts:${a.id}">Edit</button>
+        </div>`).join("")}
+      </div>`).join("")}
+      <p style="font-size:12px;color:var(--muted);margin:12px 0 0">
+        Decide which record to keep, move anything attached to the other one across, then mark
+        the spare as <em>Former client</em> or delete it.</p>
+    </div>
+  </div>`:""}
+
+  <div class="card">${list.length ? `<div class="tbl-wrap"><table>
+    <thead><tr>
+      <th>Customer</th><th>Type</th><th>Account manager</th><th>Worked by</th>
+      <th style="text-align:right">Contacts</th><th style="text-align:right">Deals</th>
+      <th style="text-align:right">Quotes</th><th style="text-align:right">Open</th>
+      <th style="text-align:right">Revenue</th><th></th>
+    </tr></thead>
+    <tbody>${list.map(x=>`<tr>
+      <td><span class="lnk" data-open="accounts:${x.a.id}">${esc(x.a.name)}</span>
+        ${dupeIds.has(x.a.id)?' <span class="pill alert" title="Another record has a very similar name">dup?</span>':""}
+        <div style="font-size:11.5px;color:var(--muted)">${esc(x.a.industry||"")}${x.a.city?" · "+esc(x.a.city):""}</div></td>
+      <td>${pillFor("type",x.a.type)}</td>
+      <td>${x.a.accountManagerId ? esc(userName(x.a.accountManagerId))
+            : `<span class="pill warn">Unassigned</span>`}</td>
+      <td>${x.depts.length ? x.depts.map(d=>`<span class="pill ${DEPT_CLASS[d]||""}">${esc(d.split(" ").map(w=>w[0]).join(""))}</span>`).join(" ")
+            : `<span style="color:var(--faint)">—</span>`}</td>
+      <td class="num">${x.contacts}</td>
+      <td class="num">${x.deals}</td>
+      <td class="num">${x.quotes}</td>
+      <td class="num">${x.open?money(x.open):"—"}</td>
+      <td class="num">${x.revenue?money(x.revenue):"—"}</td>
+      <td class="row-act"><button class="btn sm" data-edit="accounts:${x.a.id}">Edit</button></td>
+    </tr>`).join("")}</tbody>
+  </table></div>` : `<div class="empty"><strong>Nothing here</strong>
+    ${f.tab==="dupes"?"No duplicate company names found.":"No customers match this view."}</div>`}</div>`;
+}
+
+/* ------------------------------------------------------------------ */
 /* 11g. TABBED, PRE-FILTERED LISTS                                     */
 /*   Prospects, Partnerships, Project opportunities and Client         */
 /*   engagement are all slices of records you already have.            */
@@ -2279,7 +2462,8 @@ function viewBDDashboard(){
         }).join("")}
       </div>
     </div>
-  </div>`;
+  </div>
+  ${accountAlertCard()}`;
 }
 
 /* ------------------------------------------------------------------ */
@@ -2462,7 +2646,8 @@ function viewMarketingDashboard(){
         </tr>`).join("")}</tbody></table></div>`
         : `<div class="empty"><strong>All picked up</strong>Every lead has been contacted.</div>`}
     </div>
-  </div>`;
+  </div>
+  ${accountAlertCard()}`;
 }
 
 /* ------------------------------------------------------------------ */
@@ -2871,6 +3056,9 @@ function wireView(){
   v.querySelectorAll("[data-pipe]").forEach(el=> el.onclick = ()=>{
     state.filters.pipeMode = el.dataset.pipe; render();
   });
+  v.querySelectorAll("[data-rtab]").forEach(el=> el.onclick = ()=>{
+    state.filters.registry.tab = el.dataset.rtab; render();
+  });
   v.querySelectorAll("[data-ftab]").forEach(el=> el.onclick = ()=>{
     const [route,tab] = el.dataset.ftab.split(":");
     state.filters[route].tab = tab; render();
@@ -2952,6 +3140,20 @@ function escClose(e){ if(e.key==="Escape") closeModal(); }
 
 function fieldHTML(col,f,d){
   if (f.type === "computed") return "";
+  if (f.type === "deptnotes"){
+    const dept = actingDept();
+    const all = d?.deptNotes || {};
+    const mine = all[dept] || "";
+    const others = Object.entries(all).filter(([k,v])=> k !== dept && v);
+    return `<div class="field full">
+      <label for="f-deptNotes">${esc(f.l)} <span class="pill ${DEPT_CLASS[dept]||""}">${esc(dept)}</span></label>
+      <textarea id="f-deptNotes" data-deptnotes="${esc(dept)}">${esc(mine)}</textarea>
+      <span class="hint">Only your department sees this. Use Shared notes for anything everyone should know.</span>
+      ${others.length ? `<div class="othernotes">${others.map(([k,v])=>`
+        <div><span class="pill ${DEPT_CLASS[k]||""}">${esc(k)}</span>
+        <span>${esc(String(v).slice(0,150))}${String(v).length>150?"…":""}</span></div>`).join("")}</div>`:""}
+    </div>`;
+  }
   const v = d?.[f.k] ?? f.def ?? "";
   const id = "f-"+f.k;
   if (f.type === "links") return `<div class="field full">
@@ -3037,6 +3239,17 @@ async function submitForm(col,id){
     if (f && (f.type==="money"||f.type==="number")) v = v==="" ? null : Number(v);
     vals[el.dataset.k] = v === "" ? null : v;
   });
+  const dn = document.querySelector("[data-deptnotes]");
+  if (dn){
+    const prev = (id ? state.data[col].get(id)?.deptNotes : null) || {};
+    vals.deptNotes = { ...prev, [dn.dataset.deptnotes]: dn.value || "" };
+  }
+  // records raised against a customer carry that customer's manager, so the
+  // person responsible for the relationship always sees them
+  if (vals.accountId){
+    const acct = state.data.accounts.get(vals.accountId);
+    if (acct?.accountManagerId) vals.accountManagerId = acct.accountManagerId;
+  }
   if (!isManager()) vals.ownerId = id ? (state.data[col].get(id)?.ownerId || myUid()) : myUid();
   if (!vals.ownerId) vals.ownerId = myUid();
   S.fields.forEach(f=>{ if(f.req && (vals[f.k]===null||vals[f.k]==="")) errs.push(f.l+" is required."); });
@@ -3084,7 +3297,9 @@ function openDetail(col,id){
     </div>
     <div class="modal-b">
       <div class="det">
-        ${S.fields.filter(f=>d[f.k]!==undefined && d[f.k]!==null && d[f.k]!=="").map(f=>`
+        ${S.fields.filter(f=> f.type==="deptnotes"
+            ? Object.values(d.deptNotes||{}).some(Boolean)
+            : (d[f.k]!==undefined && d[f.k]!==null && d[f.k]!=="")).map(f=>`
           <div class="r ${f.type==="textarea"?"full":""}">
             <div class="k">${esc(f.l)}</div><div class="v">${cell(col,f,d)}</div>
           </div>`).join("")}
@@ -3508,6 +3723,7 @@ function openQuoteForm(id, preset){
       taxPct:Number($("#q-tax").value||0)||null,
       subtotal:t.sub, total:t.total, terms:$("#q-terms").value||null,
       ownerId, department: state.users.get(ownerId)?.department || state.profile.department,
+      accountManagerId: state.data.accounts.get($("#q-acct").value)?.accountManagerId || null,
       updatedAt: serverTimestamp()
     };
     $("#q-save").disabled = true;
@@ -4093,8 +4309,13 @@ function openImport(col){
           <tbody>${built.map((b,n)=>`<tr class="${b.issues.length?"rowbad":""}">
             <td class="mono" style="color:var(--faint)">${n+1}</td>
             ${shown.map(x=>{
-              const v = b.rec[x.k] ?? b.rec["_new_"+x.k] ?? "";
-              return `<td>${esc(String(v).slice(0,40))}${b.rec["_new_"+x.k]?' <span class="pill warn">new</span>':""}</td>`;
+              const f = SCHEMAS[col].fields.find(y=>y.k===x.k);
+              const isNew = b.rec["_new_"+x.k];
+              let v = b.rec[x.k] ?? isNew ?? "";
+              // show the matched record's name, never its internal id
+              if (!isNew && f?.type === "ref" && f.refTo && v) v = recordTitle(f.refTo, v);
+              return `<td>${esc(String(v).slice(0,40))}${isNew?' <span class="pill warn">new</span>'
+                : (f?.type==="ref" && b.rec[x.k]) ? ' <span class="pill accent">linked</span>' : ""}</td>`;
             }).join("")}
             <td>${b.issues.length ? `<span class="pill alert" title="${esc(b.issues.join(" · "))}">${esc(b.issues[0])}</span>`
                                   : `<span class="pill accent">Ready</span>`}</td>
