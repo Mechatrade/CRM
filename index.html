@@ -827,6 +827,7 @@ const DEFAULT_SETTINGS = {
   lostReasons: ["Price too high","Lost to competitor","No budget","No decision","Timing","No response","Not a fit"],
   channels:    ["Facebook Ads","Google Ads","LinkedIn","Email Campaign","Trade Show","Seminar","Product Launch","Print","Webinar","Referral Program"],
   staleDays:   [7, 21],
+  managerEdit: true,          // may officers and managers edit their team's records?
   companyName: "MECHATRADE INDUSTRIAL SOLUTIONS INC.",
   companyAddress: "",
   companyPhone: "",
@@ -1519,8 +1520,24 @@ function renderLinks(v){
 
 /* Status can be changed straight from the list, so nobody has to open the
    full form — and therefore can't accidentally alter the figures. */
-function canEditRecord(d){
-  return isAdmin() || isManager() || d.ownerId === myUid() || d.createdBy === myUid();
+/* Mirrors the security rules exactly, so the interface never offers an
+   edit the database will refuse. */
+function canWrite(d){
+  if (!d) return false;
+  if (isAdmin()) return true;
+  if (d.ownerId === myUid() || d.createdBy === myUid()) return true;
+  if (d.accountManagerId === myUid()) return true;        // you hold the customer
+  if (isManager() && d.department === state.profile.department)
+    return state.settings.managerEdit !== false;          // set in Settings
+  return false;
+}
+const canEditRecord = canWrite;
+/* Why an edit is blocked, in plain words. */
+function readOnlyNote(d){
+  const who = userName(d.ownerId);
+  return isManager() && d.department === state.profile.department
+    ? `Read-only — ${who} owns this. Editing colleagues' records is switched off in Settings.`
+    : `Read-only — this belongs to ${who}.`;
 }
 function statusSelect(col, d, opts){
   const now = col === "quotations" ? quoteStatus(d) : (d.status || "");
@@ -1758,9 +1775,11 @@ function viewList(col){
           : cell(col,c,d)
         }</td>`).join("")}
         <td class="row-act">
-          ${col==="leads" && d.status!=="Converted" ? `<button class="btn sm" data-convert="${d.id}">Convert</button> `:""}
-          ${col==="activities" && d.status!=="Done" ? `<button class="btn sm" data-donebtn="${d.id}">Done</button> `:""}
-          <button class="btn sm" data-edit="${col}:${d.id}">Edit</button>
+          ${canWrite(d) ? `
+            ${col==="leads" && d.status!=="Converted" ? `<button class="btn sm" data-convert="${d.id}">Convert</button> `:""}
+            ${col==="activities" && d.status!=="Done" ? `<button class="btn sm" data-donebtn="${d.id}">Done</button> `:""}
+            <button class="btn sm" data-edit="${col}:${d.id}">Edit</button>`
+          : `<span class="pill" title="${esc(readOnlyNote(d))}">${esc(initials(userName(d.ownerId)))}</span>`}
         </td>
       </tr>`).join("")}
     </tbody>
@@ -2460,7 +2479,8 @@ function viewFiltered(routeKey){
     <tbody>${list.map(d=>`<tr>
       ${cols.map((c,i)=>`<td class="${["money","number"].includes(c.type)?"num":""}">${
         i===0 ? `<span class="lnk" data-open="${col}:${d.id}">${esc(titleOf(col,d))}</span>` : cell(col,c,d)}</td>`).join("")}
-      <td class="row-act"><button class="btn sm" data-edit="${col}:${d.id}">Edit</button></td>
+      <td class="row-act">${canWrite(d) ? `<button class="btn sm" data-edit="${col}:${d.id}">Edit</button>`
+        : `<span class="pill" title="${esc(readOnlyNote(d))}">${esc(initials(userName(d.ownerId)))}</span>`}</td>
     </tr>`).join("")}</tbody></table></div>`
     : `<div class="empty"><strong>Nothing in ${esc(tab[1].toLowerCase())}</strong>
         Records appear here once they're tagged accordingly.</div>`}</div>`;
@@ -3104,6 +3124,15 @@ function viewSettings(){
           <input id="s-cold" type="number" min="2" value="${s.staleDays[1]}">
           <span class="hint">Cards turn red and appear on the dashboard.</span>
         </div>
+        <div class="field full">
+          <label for="s-manageredit">Who may edit a colleague's record</label>
+          <select id="s-manageredit">
+            <option value="true"${s.managerEdit !== false?" selected":""}>Officers and managers may edit their whole department</option>
+            <option value="false"${s.managerEdit === false?" selected":""}>Only the person who owns a record may edit it</option>
+          </select>
+          <span class="hint">Either way, everyone still <em>sees</em> what their role allows, and
+            administrators can always edit. Staff have never been able to edit each other's records.</span>
+        </div>
       </div>
       <div class="eyebrow" style="margin:4px 0 10px">Company details — these appear on every quotation</div>
       <div class="fgrid" style="margin-bottom:18px">
@@ -3316,6 +3345,7 @@ async function saveSettings(){
   const payload = {
     currency: $("#s-cur").value,
     staleDays: [Number($("#s-warm").value)||7, Number($("#s-cold").value)||21],
+    managerEdit: $("#s-manageredit").value === "true",
     ...Object.fromEntries(["companyName","companyAddress","companyPhone","companyEmail",
       "companyWeb","companyTin","bankDetails","quoteTerms"].map(k=>[k, $("#s-"+k).value])),
     ...Object.fromEntries(LISTS.map(L=>[L.k, $("#s-"+L.k).value.split("\n").map(s=>s.trim()).filter(Boolean)]))
@@ -3402,6 +3432,10 @@ function dynamicOptions(type, sel){
 function openForm(col, id, preset){
   if (col === "quotations") return openQuoteForm(id, preset);
   const S = SCHEMAS[col]; if(!S) return;
+  if (id){
+    const existing = state.data[col].get(id);
+    if (existing && !canWrite(existing)) return toast(readOnlyNote(existing), true);
+  }
   const d = id ? { ...state.data[col].get(id), ...(preset||{}) } : (preset||{});
   modal(`
     <div class="modal-h"><h3>${id?"Edit":"New"} ${esc(S.label.toLowerCase())}</h3>
@@ -3525,11 +3559,13 @@ function openDetail(col,id){
     <div class="modal-f">
       ${col==="leads" && d.status!=="Converted" ? `<button class="btn" id="conv">Convert to deal</button>`:""}
       <div class="spacer"></div>
+      ${canWrite(d) ? "" : `<span class="pill" style="margin-right:8px">${esc(readOnlyNote(d))}</span>`}
       <button class="btn" data-close>Close</button>
-      <button class="btn pri" id="editme">Edit</button>
+      ${canWrite(d) ? `<button class="btn pri" id="editme">Edit</button>` : ""}
     </div>`, true);
 
-  $("#editme").onclick = ()=>{ closeModal(); openForm(col,id); };
+  const em = document.querySelector("#editme");
+  if (em) em.onclick = ()=>{ closeModal(); openForm(col,id); };
   const c = document.querySelector("#conv"); if(c) c.onclick = ()=>{ closeModal(); openConvert(id); };
   $("#log-act").onclick = ()=>{
     closeModal();
@@ -3896,6 +3932,10 @@ function itemRow(i, it={}){
   </tr>`;
 }
 function openQuoteForm(id, preset){
+  if (id){
+    const existing = state.data.quotations.get(id);
+    if (existing && !canWrite(existing)) return toast(readOnlyNote(existing), true);
+  }
   const q = id ? { ...state.data.quotations.get(id) } : { ...(preset || {}) };
   let items = Array.isArray(q.items) && q.items.length ? [...q.items] : [{desc:"",qty:1,price:""}];
   const accts = rows("accounts").sort((a,b)=>(a.name||"").localeCompare(b.name||""));
