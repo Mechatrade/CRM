@@ -1821,7 +1821,9 @@ async function syncDealFromQuote(q, status){
   if (!rule.auto && !confirm(`${rule.ask}\n\n${d.title} — ${money(d.value)}`)) return;
 
   const patch = { stage:rule.stage, probability:stageProb(rule.stage),
-                  stageChangedAt:serverTimestamp(), updatedAt:serverTimestamp() };
+                  stageChangedAt:serverTimestamp(), updatedAt:serverTimestamp(),
+                  // so the move can be undone if the quotation is deleted
+                  stageSetByQuoteId: q.id || null, stagePrevStage: d.stage };
   if (!OPEN_STAGES.includes(rule.stage)) patch.closedAt = serverTimestamp();
   if (rule.stage === "Won" && Number(q.total) && Number(q.total) !== Number(d.value))
     patch.value = Number(q.total);                          // the accepted figure is the real one
@@ -3055,7 +3057,7 @@ function wireView(){
         toast(`Marked ${el.value}`);
         if (col === "quotations"){
           const q = state.data.quotations.get(id);
-          if (q) await syncDealFromQuote({ ...q, status: el.value }, el.value);
+          if (q) await syncDealFromQuote({ ...q, id, status: el.value }, el.value);
         }
       }catch(e){
         if (prev) el.value = prev;
@@ -3474,15 +3476,36 @@ async function deleteRecord(col, id, opts = {}){
   const total = deps.reduce((n,d)=>n+d.hits.length,0);
   const name = titleOf(col, state.data[col].get(id) || {});
 
+  // what deleting this will do to the pipeline behind it
+  const plan = opts.aftermath !== undefined ? opts.aftermath
+             : (col === "quotations" ? quoteAftermath({ ...state.data.quotations.get(id), id }) : null);
+  const knock = plan
+    ? (plan.kind === "delete"
+        ? `\n\nThe opportunity "${plan.deal.title}" was created by this quotation and will be removed too.`
+        : `\n\nThe opportunity "${plan.deal.title}" will move back from ${plan.deal.stage} to ${plan.to}.`)
+    : "";
+
   if (!total){
-    if (!confirm(`Delete ${name}? This can't be undone.`)) return false;
+    if (!confirm(`Delete ${name}?${knock}\n\nThis can't be undone.`)) return false;
   } else {
     const lines = deps.map(d=>`  · ${d.hits.length} ${d.hits.length===1
       ? SCHEMAS[d.col].label.toLowerCase() : SCHEMAS[d.col].plural.toLowerCase()}`).join("\n");
     const msg = `${name} has ${total} record${total===1?"":"s"} attached:\n\n${lines}\n\n`
       + `OK — delete ${name} and everything above.\n`
-      + `Cancel — keep everything and delete nothing.`;
+      + `Cancel — keep everything and delete nothing.` + knock;
     if (!confirm(msg)) return false;
+  }
+
+  // Take a copy first: once the delete commits, the live listener drops the
+  // record from memory and there is nothing left to read the number from.
+  const reclaimable = [];
+  if (opts.reclaim !== false){
+    if (col === "quotations"){
+      const q = state.data.quotations.get(id);
+      if (q && (opts.force || quoteStatus(q) === "Draft")) reclaimable.push({ ...q });
+    }
+    deps.filter(d=>d.col === "quotations").forEach(d=>
+      d.hits.forEach(h=>{ if (quoteStatus(h) === "Draft") reclaimable.push({ ...h }); }));
   }
 
   try{
@@ -3490,20 +3513,17 @@ async function deleteRecord(col, id, opts = {}){
     batch.delete(doc(db, col, id));
     deps.forEach(d=> d.hits.forEach(h=> batch.delete(doc(db, d.col, h.id))));
     await batch.commit();
-    // a deleted quotation gives its number back, so the series stays unbroken
+
+    // a deleted quotation gives its number back, so the series stays unbroken.
+    // Highest first, so winding the counter back works one step at a time.
     const freed = [];
-    if (col === "quotations" && opts.reclaim !== false){
-      const q = state.data.quotations.get(id);
-      if (q && quoteStatus(q) === "Draft" && await releaseQuoteNumber(q)) freed.push(q.quoteNo);
+    for (const q of reclaimable.sort((a,b)=>(seriesOf(b)?.no||0)-(seriesOf(a)?.no||0))){
+      if (await releaseQuoteNumber(q)) freed.push(q.quoteNo);
     }
-    for (const d of deps.filter(d=>d.col === "quotations")){
-      for (const h of d.hits){
-        if (quoteStatus(h) === "Draft" && await releaseQuoteNumber(h)) freed.push(h.quoteNo);
-      }
-    }
+    await applyQuoteAftermath(plan);
     toast((total ? `${S.label} deleted with ${total} attached record${total===1?"":"s"}`
                  : `${S.label} deleted`)
-          + (freed.length ? ` · ${freed.length} number${freed.length===1?"":"s"} freed` : ""));
+          + (freed.length ? ` · ${esc(freed[0])} free to use again` : ""));
     return true;
   }catch(e){
     console.error("delete failed", e);
@@ -3539,7 +3559,46 @@ async function releaseQuoteNumber(q){
       }
     });
     return true;
-  }catch(e){ console.warn("release number", e); return false; }
+  }catch(e){
+    console.error("could not free the quote number", e);
+    toast(e.code === "permission-denied"
+      ? "Number couldn't be freed — publish the updated security rules to enable this."
+      : `Number couldn't be freed: ${e.message}`, true);
+    return false;
+  }
+}
+
+/* Deleting a quotation must not leave the pipeline claiming a proposal is
+   out. An opportunity that only exists because of this quote goes with it;
+   one that existed before is simply put back where it was. */
+function quoteAftermath(q){
+  if (!q?.dealId) return null;
+  const d = state.data.deals.get(q.dealId);
+  if (!d) return null;
+  if (d.createdFromQuoteId === q.id)
+    return { kind:"delete", deal:d };
+  if (d.stageSetByQuoteId === q.id && d.stagePrevStage && d.stage !== d.stagePrevStage)
+    return { kind:"revert", deal:d, to:d.stagePrevStage };
+  return null;
+}
+async function applyQuoteAftermath(plan){
+  if (!plan) return;
+  try{
+    if (plan.kind === "delete"){
+      await deleteDoc(doc(db,"deals",plan.deal.id));
+      toast(`Opportunity "${plan.deal.title}" removed with it`);
+    } else {
+      await updateDoc(doc(db,"deals",plan.deal.id), {
+        stage: plan.to, probability: stageProb(plan.to),
+        stageSetByQuoteId: null, stagePrevStage: null,
+        closedAt: null, stageChangedAt: serverTimestamp(), updatedAt: serverTimestamp()
+      });
+      toast(`"${plan.deal.title}" moved back to ${plan.to}`);
+    }
+  }catch(e){
+    console.error("could not tidy the opportunity", e);
+    toast(`Quotation deleted, but the opportunity couldn't be updated: ${e.message}`, true);
+  }
 }
 
 /* ---- purchase history for a customer ---- */
@@ -3841,20 +3900,17 @@ function openQuoteForm(id, preset){
   const del = document.querySelector("#q-del");
   if (del) del.onclick = async ()=>{
     const live = state.data.quotations.get(id);
-    const sent = live && !["Draft"].includes(quoteStatus(live));
-    let reclaim = true;
+    const plan = quoteAftermath({ ...live, id });
+    const sent = live && quoteStatus(live) !== "Draft";
+    let force = false;
     if (sent){
-      reclaim = confirm(
+      force = confirm(
         `${live.quoteNo} has already been marked ${quoteStatus(live)}.\n\n`
         + `OK — delete it and free the number for the next quotation.\n`
         + `Cancel — delete it but retire the number, leaving a gap in the series.\n\n`
         + `Only reuse it if this quotation never actually reached the customer.`);
     }
-    if (await deleteRecord("quotations", id)){
-      if (reclaim && live && await releaseQuoteNumber(live))
-        toast(`${live.quoteNo} is free to use again`);
-      closeModal();
-    }
+    if (await deleteRecord("quotations", id, { force, aftermath:plan })) closeModal();
   };
 
   $("#q-save").onclick = async ()=>{
@@ -3888,7 +3944,7 @@ function openQuoteForm(id, preset){
         await updateDoc(doc(db,"quotations",id), payload);   // number is never rewritten
         closeModal(); toast("Quotation saved");
         if (payload.status !== before)
-          await syncDealFromQuote({ ...payload, total:t.total }, payload.status);
+          await syncDealFromQuote({ ...payload, id, total:t.total }, payload.status);
       } else {
         const key = counterKey(quoteDeptOf(ownerId), payload.issueDate);
         const makeDeal = payload.dealId === "__new__";
@@ -3906,6 +3962,7 @@ function openQuoteForm(id, preset){
           tx.set(cref, { next:nextVal, released:free,
             department:quoteDeptOf(ownerId), updatedAt:serverTimestamp() }, { merge:true });
 
+          const qref = doc(collection(db,"quotations"));
           let dealId = makeDeal ? null : payload.dealId;
           if (makeDeal){
             const dref = doc(collection(db,"deals"));
@@ -3914,6 +3971,7 @@ function openQuoteForm(id, preset){
               title: payload.title, accountId: payload.accountId, contactId: payload.contactId,
               value: t.total, stage, probability: stageProb(stage),
               opportunityType: "Direct", sector: "Private",   // so it shows in every list
+              createdFromQuoteId: qref.id,        // it exists only because of this quotation
               accountManagerId: payload.accountManagerId || null,
               expectedCloseDate: payload.validUntil || null,
               ownerId, department:dept, createdBy:myUid(),
@@ -3921,17 +3979,18 @@ function openQuoteForm(id, preset){
             });
             dealId = dref.id;
           }
-          tx.set(doc(collection(db,"quotations")), {
+          tx.set(qref, {
             ...payload, dealId, quoteNo, seriesKey:key, seriesNo:n,
             createdAt:serverTimestamp(), createdBy:myUid()
           });
-          return { quoteNo, dealId, madeDeal:makeDeal };
+          return { quoteNo, dealId, madeDeal:makeDeal, quoteId:qref.id };
         });
         closeModal();
         toast("Quotation " + result.quoteNo + " created"
               + (result.madeDeal ? " with a new opportunity" : ""));
         if (!result.madeDeal && result.dealId)
-          await syncDealFromQuote({ ...payload, dealId:result.dealId, total:t.total }, payload.status);
+          await syncDealFromQuote({ ...payload, id:result.quoteId, dealId:result.dealId, total:t.total },
+                                  payload.status);
       }
     }catch(e){
       $("#q-save").disabled = false;
