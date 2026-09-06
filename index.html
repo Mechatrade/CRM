@@ -1310,6 +1310,7 @@ const NAV = [
     { id:"pipeline",   label:"Opportunities", icon:"◈", depts:["Sales"],
       count:()=>rows("deals").filter(d=>OPEN_STAGES.includes(d.stage)).length },
     { id:"quotations", label:"Quotations",    icon:"❑", depts:["Sales"], count:openQuoteCount },
+    { id:"forecast",   label:"Forecast",      icon:"◭", depts:["Sales"] },
     { id:"accounts",   label:"Customers",     icon:"▣", depts:["Sales"] },
     { id:"contacts",   label:"Contacts",      icon:"◍", depts:["Sales"] }
   ]},
