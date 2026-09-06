@@ -1344,7 +1344,7 @@ const NAV = [
 
   { group:"Administration", admin:true, items:[
     { id:"registry", label:"Customer registry", icon:"▦",
-      count:()=>rows("accounts").filter(a=>!a.accountManagerId).length }
+      count:()=>rows("accounts").filter(a=>!a.accountManagerId).length + orphanScan().length }
   ]},
   { group:"Insight", items:[
     { id:"performance", label:"Performance", icon:"◭", depts:["Sales","Business Development"] },
@@ -1792,6 +1792,24 @@ function seriesBadge(){
     ${free?`${free} to reuse`:""}${free&&gaps?" · ":""}${gaps?`${gaps} gap${gaps===1?"":"s"}`:""}</span>`;
 }
 
+/* Every series we know about, with what the counter says versus what the
+   quotations on file actually show. */
+function seriesAudit(){
+  const keys = new Set(state.counters.keys());
+  rows("quotations").forEach(q=>{ const sr = seriesOf(q); if (sr) keys.add(sr.key); });
+  return Array.from(keys).sort().map(key=>{
+    const used = rows("quotations").map(seriesOf).filter(x=>x && x.key===key).map(x=>x.no).sort((a,b)=>a-b);
+    const highest = used.length ? Math.max(...used) : 0;
+    const counter = Number(state.counters.get(key)?.next || 1);
+    const pool = releasedNumbers(key);
+    const gaps = [];
+    for (let i=1;i<=highest;i++) if (!used.includes(i) && !pool.includes(i)) gaps.push(i);
+    // numbers burnt past the last real quotation
+    for (let i=highest+1;i<counter;i++) if (!pool.includes(i)) gaps.push(i);
+    return { key, used, highest, counter, pool, gaps, shouldBe:highest+1 };
+  });
+}
+
 function openQuoteCount(){            // declared, so the NAV table can use it
   return rows("quotations").filter(q=>["Draft","Sent","Viewed"].includes(quoteStatus(q))).length;
 }
@@ -2229,6 +2247,33 @@ function accountAlertCard(){
   </div>`;
 }
 
+/* Records left pointing at something that no longer exists — usually the
+   residue of a deletion made before the clean-up rules were in place. */
+function orphanScan(){
+  const out = [];
+  const has = (c,id)=> !!id && state.data[c].has(id);
+  rows("deals").forEach(d=>{
+    if (d.accountId && !has("accounts", d.accountId))
+      out.push({ col:"deals", r:d, why:"its customer was deleted" });
+    else if (d.createdFromQuoteId && !has("quotations", d.createdFromQuoteId))
+      out.push({ col:"deals", r:d, why:"the quotation that created it was deleted" });
+    else if (d.stage === "Proposal Sent"
+             && !rows("quotations").some(q=>q.dealId === d.id))
+      out.push({ col:"deals", r:d, why:"marked Proposal Sent but no quotation exists" });
+  });
+  rows("quotations").forEach(q=>{
+    if (q.accountId && !has("accounts", q.accountId))
+      out.push({ col:"quotations", r:q, why:"its customer was deleted" });
+    else if (q.dealId && !has("deals", q.dealId))
+      out.push({ col:"quotations", r:q, why:"its opportunity was deleted" });
+  });
+  rows("contacts").forEach(c=>{
+    if (c.accountId && !has("accounts", c.accountId))
+      out.push({ col:"contacts", r:c, why:"its customer was deleted" });
+  });
+  return out;
+}
+
 function viewRegistry(){
   const f = state.filters.registry || (state.filters.registry = { tab:"all" });
   const accts = rows("accounts");
@@ -2252,7 +2297,8 @@ function viewRegistry(){
     ["all",       "All customers",     ()=>accts],
     ["unassigned","No account manager",()=>accts.filter(a=>!a.accountManagerId)],
     ["shared",    "Worked by 2+ teams",()=>accts.filter(a=>enrich(a).depts.length>1)],
-    ["dupes",     "Possible duplicates",()=>dupes.flat()]
+    ["dupes",     "Possible duplicates",()=>dupes.flat()],
+    ["orphans",   "Needs tidying",     ()=>[]]
   ];
   const tab = TABS.find(t=>t[0]===f.tab) || TABS[0];
   let list = tab[2]().filter(a=>matches(a,"accounts")).map(enrich);
@@ -2270,6 +2316,7 @@ function viewRegistry(){
     <button class="btn" data-newrec="accounts">New customer</button>
   </div>
 
+  ${f.tab==="orphans" ? orphanPanel() : ""}
   ${f.tab==="dupes" && dupes.length ? `<div class="card" style="margin-bottom:14px">
     <div class="card-h"><h3>Likely the same company</h3><div class="spacer"></div>
       <span class="eyebrow">${dupes.length} group${dupes.length===1?"":"s"}</span></div>
@@ -2291,7 +2338,7 @@ function viewRegistry(){
     </div>
   </div>`:""}
 
-  <div class="card">${list.length ? `<div class="tbl-wrap"><table>
+  ${f.tab==="orphans" ? "" : `<div class="card">${list.length ? `<div class="tbl-wrap"><table>
     <thead><tr>
       <th>Customer</th><th>Type</th><th>Account manager</th><th>Worked by</th>
       <th style="text-align:right">Contacts</th><th style="text-align:right">Deals</th>
@@ -2315,7 +2362,37 @@ function viewRegistry(){
       <td class="row-act"><button class="btn sm" data-edit="accounts:${x.a.id}">Edit</button></td>
     </tr>`).join("")}</tbody>
   </table></div>` : `<div class="empty"><strong>Nothing here</strong>
-    ${f.tab==="dupes"?"No duplicate company names found.":"No customers match this view."}</div>`}</div>`;
+    ${f.tab==="dupes"?"No duplicate company names found.":"No customers match this view."}</div>`}</div>`}`;
+}
+
+function orphanPanel(){
+  const list = orphanScan();
+  if (!list.length) return `<div class="card"><div class="empty">
+    <strong>Everything is joined up</strong>
+    No record points at something that has been deleted.</div></div>`;
+  return `
+  <div class="card">
+    <div class="card-h"><h3>Records left behind by a deletion</h3><div class="spacer"></div>
+      <span class="eyebrow">${list.length} to review</span>
+      <button class="btn sm dgr" id="orphan-all">Delete all ${list.length}</button></div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>Type</th><th>Record</th><th>Problem</th><th style="text-align:right">Value</th><th></th></tr></thead>
+      <tbody>${list.map(({col,r,why})=>`<tr>
+        <td>${pillFor("type", SCHEMAS[col].label)}</td>
+        <td><span class="lnk" data-open="${col}:${r.id}">${esc(titleOf(col,r))}</span>
+          <div style="font-size:11.5px;color:var(--muted)">${esc(userName(r.ownerId))}${
+            r.department?" · "+esc(r.department):""}</div></td>
+        <td style="font-size:12.5px;color:var(--muted)">${esc(why)}</td>
+        <td class="num">${r.total||r.value ? money(r.total||r.value) : "—"}</td>
+        <td class="row-act">
+          <button class="btn sm" data-edit="${col}:${r.id}">Open</button>
+          <button class="btn sm dgr" data-orphan="${col}:${r.id}">Delete</button>
+        </td>
+      </tr>`).join("")}</tbody>
+    </table></div>
+    <p style="font-size:11.5px;color:var(--muted);padding:0 16px 14px;margin:0">
+      Open one to reassign it instead, if it is still real work worth keeping.</p>
+  </div>`;
 }
 
 /* ------------------------------------------------------------------ */
@@ -2972,6 +3049,38 @@ const LISTS = [
   { k:"lostReasons", l:"Lost reasons",  h:"Required when a deal is marked Lost." },
   { k:"channels",    l:"Campaign channels", h:"Marketing channel options." }
 ];
+function seriesPanel(){
+  const audit = seriesAudit();
+  if (!audit.length) return `<p style="font-size:12.5px;color:var(--muted);margin:0">
+    No quotations issued yet, so there are no series to manage.</p>`;
+  return `
+  <table class="maptbl">
+    <thead><tr><th>Series</th><th>Quotations on file</th><th>Next number</th>
+      <th>Free to reuse</th><th>Gaps</th><th></th></tr></thead>
+    <tbody>${audit.map(a=>{
+      const wrong = a.counter !== a.shouldBe && !a.pool.length;
+      return `<tr>
+        <td><strong class="mono" style="font-size:12px">${esc(a.key)}</strong></td>
+        <td class="sample">${a.used.length ? `${a.used.length} · up to ${String(a.highest).padStart(5,"0")}`
+                                           : `<span style="color:var(--faint)">none</span>`}</td>
+        <td><input type="number" min="1" class="seriesnext" data-key="${esc(a.key)}"
+              value="${a.counter}" style="width:92px;padding:5px 8px">
+            ${wrong?`<div style="font-size:11px;color:var(--warn);margin-top:3px">should be ${a.shouldBe}</div>`:""}</td>
+        <td class="sample">${a.pool.length ? a.pool.map(n=>String(n).padStart(5,"0")).join(", ")
+                                           : `<span style="color:var(--faint)">—</span>`}</td>
+        <td class="sample">${a.gaps.length ? `<span class="pill alert">${a.gaps.length}</span>
+              ${a.gaps.slice(0,5).map(n=>String(n).padStart(5,"0")).join(", ")}${a.gaps.length>5?"…":""}`
+            : `<span class="pill accent">none</span>`}</td>
+        <td><button class="btn sm" data-fixseries="${esc(a.key)}">Repair</button></td>
+      </tr>`;
+    }).join("")}</tbody>
+  </table>
+  <p style="font-size:11.5px;color:var(--muted);margin:9px 0 0">
+    <strong>Repair</strong> rebuilds a series from the quotations actually on file: the next number
+    becomes one past the highest in use, and any missing number below that becomes free to reuse.
+    Use it after deleting quotations that left the counter ahead of itself.</p>`;
+}
+
 function viewSettings(){
   if(!isAdmin()) return `<div class="empty"><strong>Administrators only</strong></div>`;
   const s = state.settings;
@@ -3017,6 +3126,9 @@ function viewSettings(){
           <textarea id="s-quoteTerms" style="min-height:78px">${esc(s.quoteTerms||"")}</textarea>
           <span class="hint">Pre-filled on new quotations. Staff can override per quote.</span></div>
       </div>
+      <div class="eyebrow" style="margin:4px 0 8px">Quotation series</div>
+      <div id="series-panel" style="margin-bottom:22px">${seriesPanel()}</div>
+
       ${LISTS.map(L=>`<div class="field full" style="margin-bottom:16px">
         <label for="s-${L.k}">${esc(L.l)}</label>
         <textarea id="s-${L.k}" style="min-height:84px">${esc((s[L.k]||[]).join("\n"))}</textarea>
@@ -3082,6 +3194,29 @@ function wireView(){
   v.querySelectorAll("[data-pipe]").forEach(el=> el.onclick = ()=>{
     state.filters.pipeMode = el.dataset.pipe; render();
   });
+  v.querySelectorAll("[data-orphan]").forEach(el=> el.onclick = async ()=>{
+    const [c,id] = el.dataset.orphan.split(":");
+    await deleteRecord(c, id);
+  });
+  const oa = v.querySelector("#orphan-all");
+  if (oa) oa.onclick = async ()=>{
+    const list = orphanScan();
+    if (!confirm(`Delete all ${list.length} leftover record${list.length===1?"":"s"}?\n\n`
+      + `Any quotation numbers among them are freed for reuse.\n\nThis can't be undone.`)) return;
+    let n = 0;
+    for (const {col,r} of list){
+      try{
+        if (col === "quotations"){
+          await deleteDoc(doc(db,"quotations",r.id));
+          await releaseQuoteNumber({ ...r, id:r.id });
+        } else {
+          await deleteDoc(doc(db,col,r.id));
+        }
+        n++;
+      }catch(e){ console.warn("orphan delete", e); }
+    }
+    toast(`${n} leftover record${n===1?"":"s"} removed`);
+  };
   v.querySelectorAll("[data-rtab]").forEach(el=> el.onclick = ()=>{
     state.filters.registry.tab = el.dataset.rtab; render();
   });
@@ -3106,6 +3241,8 @@ function wireView(){
     f.day = f.day === d ? null : d; render();
   });
   const ss = v.querySelector("#save-settings"); if (ss) ss.onclick = saveSettings;
+  v.querySelectorAll("[data-fixseries]").forEach(el=> el.onclick = ()=> repairSeries(el.dataset.fixseries));
+  v.querySelectorAll(".seriesnext").forEach(el=> el.onchange = ()=> setSeriesNext(el.dataset.key, el.value));
 
   // drag and drop on the board
   let dragId = null;
@@ -3138,6 +3275,43 @@ async function markDone(id){
   try{ await updateDoc(doc(db,"activities",id), { status:"Done", completedAt: serverTimestamp(), updatedAt: serverTimestamp() }); toast("Marked done"); }
   catch(e){ toast(e.message,true); }
 }
+/* Rebuild a series from the quotations that actually exist. */
+async function repairSeries(key){
+  const a = seriesAudit().find(x=>x.key===key);
+  if (!a) return;
+  const msg = `Repair ${key}?\n\n`
+    + `Next number: ${a.counter} → ${a.shouldBe}\n`
+    + (a.gaps.length ? `Free to reuse: ${a.gaps.map(n=>String(n).padStart(5,"0")).join(", ")}\n` : "")
+    + `\nNo quotation already on file is changed.`;
+  if (!confirm(msg)) return;
+  try{
+    await setDoc(doc(db,"counters",key), {
+      next: a.shouldBe,
+      released: Array.from(new Set([...a.pool, ...a.gaps])).sort((x,y)=>x-y),
+      repairedAt: serverTimestamp(), updatedAt: serverTimestamp()
+    }, { merge:true });
+    toast(`${key} repaired — next is ${String(a.shouldBe).padStart(5,"0")}`);
+  }catch(e){
+    toast(e.code === "permission-denied"
+      ? "Only an administrator can repair a series, and the rules must be published."
+      : e.message, true);
+  }
+}
+async function setSeriesNext(key, val){
+  const n = Number(val);
+  if (!n || n < 1) return toast("The next number must be 1 or more", true);
+  const used = rows("quotations").map(seriesOf).filter(x=>x && x.key===key).map(x=>x.no);
+  if (used.includes(n) && !confirm(
+      `${formatQuoteNo(key,n)} is already in use by a quotation on file.\n\n`
+    + `Setting the counter here would issue that number a second time. Continue anyway?`)) {
+    render(); return;
+  }
+  try{
+    await setDoc(doc(db,"counters",key), { next:n, updatedAt:serverTimestamp() }, { merge:true });
+    toast(`${key} now starts at ${String(n).padStart(5,"0")}`);
+  }catch(e){ toast(e.message, true); }
+}
+
 async function saveSettings(){
   const payload = {
     currency: $("#s-cur").value,
