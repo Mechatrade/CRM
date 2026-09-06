@@ -1320,6 +1320,8 @@ const NAV = [
     { id:"projects",   label:"Projects & RFQs", icon:"⌗", depts:["Business Development"],
       count:()=>rows("deals").filter(d=>{const n=daysUntil(d.submissionDeadline); return n!==null && n>=0 && n<=14;}).length },
     { id:"engagement", label:"Engagement",      icon:"◈", depts:["Business Development"] },
+    { id:"pipeline",   label:"Opportunities",   icon:"◈", depts:["Business Development"],
+      count:()=>rows("deals").filter(d=>OPEN_STAGES.includes(d.stage)).length },
     { id:"quotations", label:"Quotations",      icon:"❑", depts:["Business Development"], count:openQuoteCount },
     { id:"contacts",   label:"Contacts",        icon:"◍", depts:["Business Development"] },
     { id:"intel",      label:"Market intel",    icon:"◇", depts:["Business Development"] },
@@ -1335,6 +1337,8 @@ const NAV = [
     { id:"content",   label:"Content",   icon:"✎", depts:["Marketing"] },
     { id:"assets",    label:"Assets",    icon:"▤", depts:["Marketing"] },
     { id:"contacts",  label:"Contacts",  icon:"◍", depts:["Marketing"] },
+    { id:"pipeline",  label:"Opportunities", icon:"◈", depts:["Marketing"],
+      count:()=>rows("deals").filter(d=>OPEN_STAGES.includes(d.stage)).length },
     { id:"quotations",label:"Quotations",icon:"❑", depts:["Marketing"], count:openQuoteCount }
   ]},
 
@@ -2316,7 +2320,7 @@ const FILTERED = {
     ["rfq",     "RFQs",              d=>d.opportunityType==="RFQ"],
     ["bidding", "Bidding",           d=>d.opportunityType==="Tender / Bidding"],
     ["gov",     "Government",        d=>d.sector==="Government"],
-    ["private", "Private",           d=>d.sector==="Private"],
+    ["private", "Private",           d=>d.sector==="Private" || !d.sector],
     ["due",     "Deadline this month", d=>{const n=daysUntil(d.submissionDeadline); return n!==null && n>=0 && n<=31;}]
   ]},
   events: { col:"campaigns", tabs:[
@@ -3177,8 +3181,11 @@ function fieldHTML(col,f,d){
     } else if (f.refTo === "dynamic"){
       input = `<select id="${id}" data-k="${f.k}" data-dynamic="1">${dynamicOptions(d?.relatedType || "Lead", v)}</select>`;
     } else {
-      const list = rows(f.refTo).sort((a,b)=>titleOf(f.refTo,a).localeCompare(titleOf(f.refTo,b)));
+      const list = rows(f.refTo).filter(r=>r && r.id)
+        .sort((a,b)=>titleOf(f.refTo,a).localeCompare(titleOf(f.refTo,b)));
+      const stale = v && !list.some(r=>r.id===v);   // the record it pointed at is gone
       input = `<select id="${id}" data-k="${f.k}"><option value="">—</option>
+        ${stale?`<option value="" selected>— deleted record, choose again —</option>`:""}
         ${list.map(r=>`<option value="${r.id}"${r.id===v?" selected":""}>${esc(titleOf(f.refTo,r))}</option>`).join("")}</select>`;
     }
   }
@@ -3225,9 +3232,7 @@ function openForm(col, id, preset){
   $("#save").onclick = ()=> submitForm(col,id);
   const del = document.querySelector("#del");
   if (del) del.onclick = async ()=>{
-    if(!confirm(`Delete this ${S.label.toLowerCase()}? This can't be undone.`)) return;
-    try{ await deleteDoc(doc(db,col,id)); closeModal(); toast(S.label+" deleted"); }
-    catch(e){ toast(e.message,true); }
+    if (await deleteRecord(col, id)) closeModal();
   };
 }
 
@@ -3420,6 +3425,63 @@ function openConvert(leadId){
   };
 }
 
+/* Everything that points at a record, so deleting can't leave orphans
+   behind that keep showing up in dropdowns and reports. */
+const DEPENDENTS = {
+  accounts: [["contacts","accountId"],["deals","accountId"],["quotations","accountId"],
+             ["activities","relatedId"]],
+  contacts: [["deals","contactId"],["quotations","contactId"],["activities","relatedId"]],
+  deals:    [["quotations","dealId"],["activities","relatedId"]],
+  campaigns:[["leads","campaignId"],["deals","campaignId"],["content","campaignId"]],
+  leads:    [["activities","relatedId"]]
+};
+function dependentsOf(col, id){
+  const out = [];
+  (DEPENDENTS[col] || []).forEach(([c,key])=>{
+    const hits = rows(c).filter(r=>{
+      if (key !== "relatedId") return r[key] === id;
+      return r.relatedId === id && (r.relatedType || "").toLowerCase() === SCHEMAS[col].label.toLowerCase();
+    });
+    if (hits.length) out.push({ col:c, key, hits });
+  });
+  return out;
+}
+
+/* Delete with its attachments handled, rather than quietly orphaning them. */
+async function deleteRecord(col, id){
+  const S = SCHEMAS[col];
+  const deps = dependentsOf(col, id);
+  const total = deps.reduce((n,d)=>n+d.hits.length,0);
+  const name = titleOf(col, state.data[col].get(id) || {});
+
+  if (!total){
+    if (!confirm(`Delete ${name}? This can't be undone.`)) return false;
+  } else {
+    const lines = deps.map(d=>`  · ${d.hits.length} ${d.hits.length===1
+      ? SCHEMAS[d.col].label.toLowerCase() : SCHEMAS[d.col].plural.toLowerCase()}`).join("\n");
+    const msg = `${name} has ${total} record${total===1?"":"s"} attached:\n\n${lines}\n\n`
+      + `OK — delete ${name} and everything above.\n`
+      + `Cancel — keep everything and delete nothing.`;
+    if (!confirm(msg)) return false;
+  }
+
+  try{
+    const batch = writeBatch(db);
+    batch.delete(doc(db, col, id));
+    deps.forEach(d=> d.hits.forEach(h=> batch.delete(doc(db, d.col, h.id))));
+    await batch.commit();
+    toast(total ? `${S.label} deleted with ${total} attached record${total===1?"":"s"}`
+                : `${S.label} deleted`);
+    return true;
+  }catch(e){
+    console.error("delete failed", e);
+    toast(e.code === "permission-denied"
+      ? "You don't have permission to delete this — ask an administrator."
+      : `Couldn't delete: ${e.message}`, true);
+    return false;
+  }
+}
+
 /* ---- purchase history for a customer ---- */
 function purchaseHistory(accountId){
   const dl = rows("deals").filter(d=>d.accountId===accountId);
@@ -3552,6 +3614,8 @@ function openQuoteForm(id, preset){
           <input id="q-title" value="${esc(q.title||"")}" placeholder="Supply and installation of ..."></div>
         <div class="field"><label for="q-acct">Customer</label>
           <select id="q-acct"><option value="">—</option>
+            ${q.accountId && !accts.some(a=>a.id===q.accountId)
+              ? `<option value="" selected>— deleted customer, choose again —</option>`:""}
             ${accts.map(a=>`<option value="${a.id}"${a.id===q.accountId?" selected":""}>${esc(a.name)}</option>`).join("")}</select></div>
         <div class="field"><label for="q-contact">Attention to</label>
           <select id="q-contact"><option value="">—</option>
@@ -3698,9 +3762,7 @@ function openQuoteForm(id, preset){
 
   const del = document.querySelector("#q-del");
   if (del) del.onclick = async ()=>{
-    if(!confirm("Delete this quotation?")) return;
-    try{ await deleteDoc(doc(db,"quotations",id)); closeModal(); toast("Quotation deleted"); }
-    catch(e){ toast(e.message,true); }
+    if (await deleteRecord("quotations", id)) closeModal();
   };
 
   $("#q-save").onclick = async ()=>{
@@ -3753,6 +3815,8 @@ function openQuoteForm(id, preset){
             tx.set(dref, {
               title: payload.title, accountId: payload.accountId, contactId: payload.contactId,
               value: t.total, stage, probability: stageProb(stage),
+              opportunityType: "Direct", sector: "Private",   // so it shows in every list
+              accountManagerId: payload.accountManagerId || null,
               expectedCloseDate: payload.validUntil || null,
               ownerId, department:dept, createdBy:myUid(),
               stageChangedAt: serverTimestamp(), createdAt: serverTimestamp(), updatedAt: serverTimestamp()
