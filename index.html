@@ -1521,18 +1521,27 @@ const NAV = [
   ]},
 
   /* ---- Business Development ---- */
+  /* Business Development works the same way Sales does. The screens built
+     for BD earlier — prospects, partnerships, tenders, engagement and market
+     intel — are still here and still reachable from the BD dashboard; they
+     are simply no longer separate menu entries. Give any of them `hidden`
+     to show them in the menu again. */
   { group:"Business Development", depts:["Business Development"], items:[
-    { id:"prospects",  label:"Prospects",       icon:"◌", depts:["Business Development"] },
-    { id:"partners",   label:"Partnerships",    icon:"⬡", depts:["Business Development"] },
-    { id:"projects",   label:"Projects & RFQs", icon:"⌗", depts:["Business Development"],
-      count:()=>rows("deals").filter(d=>{const n=daysUntil(d.submissionDeadline); return n!==null && n>=0 && n<=14;}).length },
-    { id:"engagement", label:"Engagement",      icon:"◈", depts:["Business Development"] },
-    { id:"pipeline",   label:"Opportunities",   icon:"◈", depts:["Business Development"],
+    { id:"leads",      label:"Leads",         icon:"◔", depts:["Business Development"],
+      count:()=>rows("leads").filter(l=>!["Converted","Unqualified"].includes(l.status)).length },
+    { id:"pipeline",   label:"Opportunities", icon:"◈", depts:["Business Development"],
       count:()=>rows("deals").filter(d=>OPEN_STAGES.includes(d.stage)).length },
-    { id:"quotations", label:"Quotations",      icon:"❑", depts:["Business Development"], count:openQuoteCount },
-    { id:"contacts",   label:"Contacts",        icon:"◍", depts:["Business Development"] },
-    { id:"intel",      label:"Market intel",    icon:"◇", depts:["Business Development"] },
-    { id:"forecast",   label:"Forecast",        icon:"◭", depts:["Business Development"] }
+    { id:"quotations", label:"Quotations",    icon:"❑", depts:["Business Development"], count:openQuoteCount },
+    { id:"forecast",   label:"Forecast",      icon:"◭", depts:["Business Development"] },
+    { id:"accounts",   label:"Customers",     icon:"▣", depts:["Business Development"] },
+    { id:"contacts",   label:"Contacts",      icon:"◍", depts:["Business Development"] },
+
+    /* Still reachable from links and the dashboard, but off the menu so
+       Business Development reads the same as Sales. */
+    { id:"prospects",  label:"Prospects",       icon:"◌", depts:["Business Development"], hidden:true },
+    { id:"partners",   label:"Partnerships",    icon:"⬡", depts:["Business Development"], hidden:true },
+    { id:"projects",   label:"Projects & RFQs", icon:"⌗", depts:["Business Development"], hidden:true },
+    { id:"engagement", label:"Engagement",      icon:"◈", depts:["Business Development"], hidden:true }
   ]},
 
   /* ---- Marketing ---- */
@@ -1554,7 +1563,8 @@ const NAV = [
       count:()=>rows("accounts").filter(a=>!a.accountManagerId).length + orphanScan().length }
   ]},
   { group:"Insight", items:[
-    { id:"performance", label:"Performance", icon:"◭", depts:["Sales","Business Development"] },
+    { id:"performance", label:"Performance",  icon:"◭", depts:["Sales","Business Development"] },
+    { id:"intel",       label:"Market intel", icon:"◇", depts:["Business Development"] },
     { id:"reports",     label:"Reports",     icon:"◫" }
   ]},
   { group:"Administration", admin:true, items:[
@@ -1573,7 +1583,7 @@ function renderNav(){
   const html = NAV.filter(g=>(!g.admin || isAdmin()) && inDept(g))
     .map(g=>{
       const items = g.items.filter(i=>{
-        if (!inDept(i)) return false;
+        if (!inDept(i) || i.hidden) return false;
         if (seen.has(i.id)) return false;      // an admin sees each screen once
         seen.add(i.id); return true;
       });
@@ -1596,6 +1606,7 @@ function renderNav(){
 
 function allowedRoutes(){
   const out = new Set();
+  // hidden items count: they are off the menu, not out of bounds
   NAV.filter(g=>(!g.admin || isAdmin()) && inDept(g))
      .forEach(g=> g.items.filter(inDept).forEach(i=> out.add(i.id)));
   // screens an admin can still reach from links while viewing everything
@@ -1948,6 +1959,9 @@ function viewList(col){
   if (f.status) list = list.filter(d=>(d.status||d.stage)===f.status);
   if (f.owner)  list = list.filter(d=>d.ownerId===f.owner);
   if (col==="activities" && f.due==="open") list = list.filter(d=>d.status!=="Done");
+  if (col==="deals" && f.oppType) list = list.filter(d=>(d.opportunityType||"Direct")===f.oppType);
+  if (col==="deals" && f.sector)  list = list.filter(d=>(d.sector||"Private")===f.sector);
+  if (col==="accounts" && f.acctType) list = list.filter(d=>d.type===f.acctType);
 
   const sortK = f.sort || "updatedAt", dir = f.dir===1?1:-1;
   list.sort((a,b)=>{
@@ -1974,6 +1988,18 @@ function viewList(col){
     ${col==="activities"?`<select data-filter="due">
       <option value="">All activities</option>
       <option value="open"${f.due==="open"?" selected":""}>Open only</option>
+    </select>`:""}
+    ${col==="deals"?`<select data-filter="oppType">
+      <option value="">All opportunity types</option>
+      ${["Direct","RFQ","Tender / Bidding"].map(o=>opt(o,f.oppType)).join("")}
+    </select>
+    <select data-filter="sector">
+      <option value="">Private and government</option>
+      ${["Private","Government"].map(o=>opt(o,f.sector)).join("")}
+    </select>`:""}
+    ${col==="accounts"?`<select data-filter="acctType">
+      <option value="">All customer types</option>
+      ${SCHEMAS.accounts.fields.find(x=>x.k==="type").opts.map(o=>opt(o,f.acctType)).join("")}
     </select>`:""}
     <div style="flex:1"></div>
     <button class="btn" data-import="${col}" title="Paste from Excel or upload a CSV">Import</button>
@@ -2760,7 +2786,7 @@ function viewBDDashboard(){
   <div class="grid" style="grid-template-columns:1fr 1fr">
     <div class="card">
       <div class="card-h"><h3>Submission deadlines</h3><div class="spacer"></div>
-        <button class="btn sm" data-go="projects">All projects</button></div>
+        <button class="btn sm" data-go="pipeline">All opportunities</button></div>
       ${deadlines.length ? `<div class="tbl-wrap"><table><tbody>
         ${deadlines.slice(0,7).map(d=>{
           const n = daysUntil(d.submissionDeadline);
@@ -2776,7 +2802,7 @@ function viewBDDashboard(){
 
     <div class="card">
       <div class="card-h"><h3>Upcoming engagements</h3><div class="spacer"></div>
-        <button class="btn sm" data-go="engagement">Engagement log</button></div>
+        <button class="btn sm" data-go="activities">Activity log</button></div>
       ${meetings.length ? `<div class="tbl-wrap"><table><tbody>
         ${meetings.slice(0,7).map(a=>`<tr>
           <td>${pillFor("type",a.type)}</td>
@@ -2791,7 +2817,7 @@ function viewBDDashboard(){
   <div class="grid" style="grid-template-columns:1fr 1fr;margin-top:14px">
     <div class="card">
       <div class="card-h"><h3>Priority prospects</h3><div class="spacer"></div>
-        <button class="btn sm" data-go="prospects">All prospects</button></div>
+        <button class="btn sm" data-go="accounts">All customers</button></div>
       ${hotProspects.length ? `<div class="tbl-wrap"><table><tbody>
         ${hotProspects.slice(0,7).map(a=>`<tr>
           <td><span class="lnk" data-open="accounts:${a.id}">${esc(a.name)}</span>
@@ -2802,7 +2828,7 @@ function viewBDDashboard(){
     </div>
     <div class="card">
       <div class="card-h"><h3>Partnerships by type</h3><div class="spacer"></div>
-        <button class="btn sm" data-go="partners">Manage</button></div>
+        <button class="btn sm" data-go="accounts">Customers</button></div>
       <div class="bars">
         ${PARTNER_TYPES.map(t=>{
           const n = accts.filter(a=>a.type===t).length;
@@ -3017,7 +3043,9 @@ function viewPipeline(){
 
   const f = state.filters.deals || {};
   let deals = rows("deals").filter(d=>matches(d,"deals"));
-  if (f.owner) deals = deals.filter(d=>d.ownerId===f.owner);
+  if (f.owner)   deals = deals.filter(d=>d.ownerId===f.owner);
+  if (f.oppType) deals = deals.filter(d=>(d.opportunityType||"Direct")===f.oppType);
+  if (f.sector)  deals = deals.filter(d=>(d.sector||"Private")===f.sector);
   const [warm,cold] = state.settings.staleDays;
 
   return `
@@ -3026,6 +3054,10 @@ function viewPipeline(){
     <button class="btn" data-pipe="list">List</button>
     ${isManager()?`<select data-filter="owner" data-col="deals">
       <option value="">Everyone</option>${ownerOptions(f.owner)}</select>`:""}
+    <select data-filter="oppType" data-col="deals">
+      <option value="">All types</option>
+      ${["Direct","RFQ","Tender / Bidding"].map(o=>opt(o,f.oppType)).join("")}
+    </select>
     <div style="flex:1"></div>
     <span class="mono" style="font-size:12px;color:var(--muted)">
       ${money(deals.filter(d=>OPEN_STAGES.includes(d.stage)).reduce((s,d)=>s+Number(d.value||0),0))} open
