@@ -1728,7 +1728,10 @@ function cell(col,f,d){
   if (f.type === "money")  return `<span class="mono">${v?money(v):"—"}</span>`;
   if (f.type === "number") return `<span class="mono">${v??"—"}</span>`;
   if (f.type === "date")   return `<span class="mono" style="font-size:12px">${fmtDate(v)}</span>`;
-  if (f.type === "ref")    return esc(refLabel(f.refTo, v, d));
+  if (f.type === "ref"){
+    if (f.refTo === "users") return personCell(v);
+    return esc(refLabel(f.refTo, v, d));
+  }
   if (f.type === "email" && v) return `<a href="mailto:${esc(v)}">${esc(v)}</a>`;
   if (f.type === "url"   && v) return `<a href="${esc(v)}" target="_blank" rel="noopener">${esc(v)}</a>`;
   if (f.type === "select") return pillFor(f.k, v);
@@ -1783,6 +1786,19 @@ function statusSelect(col, d, opts){
                   "Open":"warn", "Done":"info" })[now] ?? "";
   return `<select class="inline-sel ${tone}" data-setstatus="${col}:${d.id}"
     title="Change status">${opts.map(o=>opt(o, now)).join("")}</select>`;
+}
+
+/* A name with the role and department underneath, so it's clear who a
+   person is without opening the Team screen. */
+function personCell(uid){
+  if (!uid) return `<span style="color:var(--faint)">Unassigned</span>`;
+  const u = state.users.get(uid);
+  if (!u) return esc(userName(uid));
+  const role = ROLES[u.role]?.label || u.role;
+  return `<div>${esc(u.displayName || u.email)}</div>
+    <div style="font-size:11px;color:var(--muted);margin-top:1px">
+      <span class="pill ${DEPT_CLASS[u.department]||""}" style="font-size:10px;padding:1px 6px">${esc(role)}</span>
+    </div>`;
 }
 
 function pillFor(key,v){
@@ -1962,6 +1978,10 @@ function viewList(col){
   if (col==="deals" && f.oppType) list = list.filter(d=>(d.opportunityType||"Direct")===f.oppType);
   if (col==="deals" && f.sector)  list = list.filter(d=>(d.sector||"Private")===f.sector);
   if (col==="accounts" && f.acctType) list = list.filter(d=>d.type===f.acctType);
+  if (f.dept) list = list.filter(d=>state.users.get(d.ownerId)?.department === f.dept);
+  if (f.role) list = list.filter(d=>state.users.get(d.ownerId)?.role === f.role);
+  if (col==="accounts" && f.mgr)
+    list = list.filter(d=> f.mgr === "__none__" ? !d.accountManagerId : d.accountManagerId === f.mgr);
 
   const sortK = f.sort || "updatedAt", dir = f.dir===1?1:-1;
   list.sort((a,b)=>{
@@ -1984,6 +2004,20 @@ function viewList(col){
     ${isManager()?`<select data-filter="owner">
       <option value="">Everyone</option>
       ${ownerOptions(f.owner)}
+    </select>
+    <select data-filter="dept" title="Filter by the owner's department">
+      <option value="">All departments</option>
+      ${DEPTS.map(d=>opt(d,f.dept)).join("")}
+    </select>
+    <select data-filter="role" title="Filter by the owner's role">
+      <option value="">All roles</option>
+      ${Object.entries(ROLES).map(([k,r])=>
+        `<option value="${k}"${f.role===k?" selected":""}>${esc(r.label)}</option>`).join("")}
+    </select>`:""}
+    ${col==="accounts" && isManager()?`<select data-filter="mgr" title="Filter by account manager">
+      <option value="">Any account manager</option>
+      <option value="__none__"${f.mgr==="__none__"?" selected":""}>Not assigned</option>
+      ${ownerOptions(f.mgr)}
     </select>`:""}
     ${col==="activities"?`<select data-filter="due">
       <option value="">All activities</option>
@@ -2574,7 +2608,10 @@ function viewRegistry(){
     ["orphans",   "Needs tidying",     ()=>[]]
   ];
   const tab = TABS.find(t=>t[0]===f.tab) || TABS[0];
-  let list = tab[2]().filter(a=>matches(a,"accounts")).map(enrich);
+  let base = tab[2]().filter(a=>matches(a,"accounts"));
+  if (f.mgr)  base = base.filter(a=> f.mgr === "__none__" ? !a.accountManagerId : a.accountManagerId === f.mgr);
+  if (f.role) base = base.filter(a=> state.users.get(a.accountManagerId)?.role === f.role);
+  let list = base.map(enrich);
   list.sort((x,y)=> y.revenue - x.revenue || (x.a.name||"").localeCompare(y.a.name||""));
 
   return `
@@ -2584,6 +2621,16 @@ function viewRegistry(){
       return `<button class="btn ${f.tab===k?"pri":""}" data-rtab="${k}">${esc(l)}
         ${n?`<span class="mono" style="opacity:.7"> ${n}</span>`:""}</button>`;
     }).join("")}
+    <select data-rfilter="mgr" title="Filter by account manager">
+      <option value="">Any account manager</option>
+      <option value="__none__"${f.mgr==="__none__"?" selected":""}>Not assigned</option>
+      ${ownerOptions(f.mgr)}
+    </select>
+    <select data-rfilter="role" title="Filter by the account manager's role">
+      <option value="">All roles</option>
+      ${Object.entries(ROLES).map(([k,r])=>
+        `<option value="${k}"${f.role===k?" selected":""}>${esc(r.label)}</option>`).join("")}
+    </select>
     <div style="flex:1"></div>
     <button class="btn" data-import="accounts">Import</button>
     <button class="btn" data-newrec="accounts">New customer</button>
@@ -2623,7 +2670,7 @@ function viewRegistry(){
         ${dupeIds.has(x.a.id)?' <span class="pill alert" title="Another record has a very similar name">dup?</span>':""}
         <div style="font-size:11.5px;color:var(--muted)">${esc(x.a.industry||"")}${x.a.city?" · "+esc(x.a.city):""}</div></td>
       <td>${pillFor("type",x.a.type)}</td>
-      <td>${x.a.accountManagerId ? esc(userName(x.a.accountManagerId))
+      <td>${x.a.accountManagerId ? personCell(x.a.accountManagerId)
             : `<span class="pill warn">Unassigned</span>`}</td>
       <td>${x.depts.length ? x.depts.map(d=>`<span class="pill ${DEPT_CLASS[d]||""}">${esc(d.split(" ").map(w=>w[0]).join(""))}</span>`).join(" ")
             : `<span style="color:var(--faint)">—</span>`}</td>
@@ -3293,10 +3340,22 @@ function viewReports(){
 /* ------------------------------------------------------------------ */
 function viewTeam(){
   if(!isAdmin()) return `<div class="empty"><strong>Administrators only</strong>Ask an admin if you need someone added.</div>`;
+  const tf = state.filters.team || (state.filters.team = {});
   const list = Array.from(state.users.values())
+    .filter(u=> !tf.dept || u.department === tf.dept)
+    .filter(u=> !tf.role || u.role === tf.role)
     .sort((a,b)=>(a.department||"").localeCompare(b.department||"") || (a.displayName||"").localeCompare(b.displayName||""));
   return `
   <div class="toolbar">
+    <select data-tfilter="dept">
+      <option value="">All departments</option>
+      ${DEPTS.map(d=>opt(d, state.filters.team?.dept)).join("")}
+    </select>
+    <select data-tfilter="role">
+      <option value="">All roles</option>
+      ${Object.entries(ROLES).map(([k,r])=>
+        `<option value="${k}"${state.filters.team?.role===k?" selected":""}>${esc(r.label)}</option>`).join("")}
+    </select>
     <span class="eyebrow">${list.length} people</span>
     <div style="flex:1"></div>
     <span style="font-size:12px;color:var(--muted)">Staff see only their own records. Managers see their whole department.</span>
@@ -3517,6 +3576,12 @@ function wireView(){
   };
   v.querySelectorAll("[data-rtab]").forEach(el=> el.onclick = ()=>{
     state.filters.registry.tab = el.dataset.rtab; render();
+  });
+  v.querySelectorAll("[data-rfilter]").forEach(el=> el.onchange = ()=>{
+    state.filters.registry[el.dataset.rfilter] = el.value; render();
+  });
+  v.querySelectorAll("[data-tfilter]").forEach(el=> el.onchange = ()=>{
+    state.filters.team[el.dataset.tfilter] = el.value; render();
   });
   v.querySelectorAll("[data-ftab]").forEach(el=> el.onclick = ()=>{
     const [route,tab] = el.dataset.ftab.split(":");
