@@ -4,6 +4,14 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Mechatrade CRM</title>
+<link rel="manifest" href="./manifest.json">
+<meta name="theme-color" content="#08182B">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Mechatrade">
+<link rel="apple-touch-icon" href="./icon-192.png">
+<link rel="icon" href="./icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <script>
@@ -636,7 +644,120 @@ select option, select optgroup{ background:var(--opt-bg); color:var(--opt-text);
   .search input{width:150px}
   .view{padding:14px}
 }
-.burger{display:none;background:none;border:1px solid var(--line);border-radius:var(--r);padding:5px 9px;cursor:pointer}
+.netpill{
+  display:none;align-items:center;gap:6px;padding:3px 10px;border-radius:20px;
+  font-size:11.5px;font-weight:500;white-space:nowrap;
+}
+.netpill::before{content:'';width:7px;height:7px;border-radius:50%;background:currentColor;flex:none}
+.netpill.off{display:inline-flex;background:var(--warn-weak);color:var(--warn)}
+.netpill.sync{display:inline-flex;background:var(--info-weak);color:var(--info)}
+.netpill.sync::before{animation:pulse 1.1s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.25}}
+.offline-note{
+  background:var(--warn-weak);color:var(--warn);border:1px solid var(--warn);
+  border-radius:6px;padding:9px 12px;font-size:12.5px;margin-bottom:12px;
+}
+.burger{display:none;background:none;border:1px solid var(--btn-brd);border-radius:6px;padding:5px 9px;cursor:pointer;color:var(--text)}
+
+/* ================= PHONES AND TABLETS =================
+   The sidebar already slides away; below is everything added since that
+   needed the same attention. ===================================== */
+@media(max-width:900px){
+  /* two-column layouts stack rather than squeeze */
+  .grid[style*="1fr 1fr"]{grid-template-columns:1fr !important}
+  .kpis{grid-template-columns:repeat(auto-fit,minmax(148px,1fr));gap:10px}
+  .kpi{padding:12px 13px}
+  .kpi .val{font-size:24px}
+  .kpi .val.mono{font-size:20px}
+
+  /* a dimmed backdrop while the menu is open, so a tap anywhere closes it */
+  .rail{box-shadow:0 0 60px rgba(0,0,0,.5)}
+  .rail-scrim{
+    position:fixed;inset:0;background:rgba(4,12,22,.55);z-index:45;
+    opacity:0;pointer-events:none;transition:opacity .2s;
+  }
+  .rail-scrim.on{opacity:1;pointer-events:auto}
+
+  /* the header has to hold a lot; give the search its own row */
+  .top{height:auto;min-height:54px;flex-wrap:wrap;padding:8px 12px;gap:8px}
+  .top h2{font-size:18px}
+  .top .search{order:9;width:100%}
+  .top .search input{width:100%}
+  #ws-switch{max-width:132px;font-size:12px}
+  #new-btn{padding:7px 11px;font-size:12.5px}
+
+  .view{padding:12px}
+  .toolbar{gap:7px}
+  .toolbar .btn{font-size:12px;padding:6px 10px}
+
+  /* tables scroll sideways with momentum instead of clipping */
+  .tbl-wrap{-webkit-overflow-scrolling:touch}
+  thead th,tbody td{padding:9px 11px}
+
+  /* modals become sheets */
+  .scrim{padding:0;align-items:flex-end}
+  .modal,.modal.wide{max-width:none;border-radius:12px 12px 0 0;max-height:94vh;display:flex;flex-direction:column}
+  .modal-b{max-height:none;flex:1;padding:16px}
+  .modal-h,.modal-f{padding:13px 16px}
+  .modal-f{flex-wrap:wrap;gap:7px}
+  .modal-f .btn{flex:1;min-width:96px}
+  .modal-f .spacer{display:none}
+
+  /* line items stack so the description isn't a sliver */
+  .items thead{display:none}
+  .items tr{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:10px 0;
+    border-bottom:1px solid var(--hair-2)}
+  .items td{padding:0}
+  .items td:first-child{grid-column:1/-1}
+  .items td[data-i="amount"]{display:flex;align-items:center;justify-content:flex-end;
+    padding-top:0 !important;font-weight:600}
+  .items .x{position:absolute;right:6px;margin-top:-2px}
+  .items tr{position:relative}
+
+  /* the board scrolls one column at a time */
+  .board{gap:10px;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch}
+  .col{width:82vw;max-width:290px;scroll-snap-align:start}
+
+  /* calendar stays a grid but loses the padding it can't afford */
+  .cal{gap:3px}
+  .cal-cell{min-height:58px;padding:3px 4px;border-radius:4px}
+  .cal-n{font-size:10.5px;margin-bottom:2px}
+  .cal-ev{font-size:9.5px;padding:1px 3px;margin-bottom:2px}
+  .cal-more{font-size:9px}
+
+  /* bar rows lose the fixed label column */
+  .bar-row{grid-template-columns:96px 1fr 66px;gap:8px}
+  .bar-row .nm{font-size:11.5px}
+  .bar-row .fig{font-size:11px}
+  .fstep{grid-template-columns:92px 1fr}
+
+  /* the quotation preview scales to fit rather than overflowing */
+  .preview-page{padding:10px 6px;display:block}
+  .preview-page .sheet{
+    width:794px;transform:scale(var(--sheet-scale,.44));transform-origin:top left;
+    margin-bottom:calc(-1123px * (1 - var(--sheet-scale,.44)));
+  }
+  .maptbl thead{display:none}
+  .maptbl tr{display:block;padding:9px 0;border-bottom:1px solid var(--hair-2)}
+  .maptbl td{display:block;padding:2px 0}
+  .maptbl td.sample{max-width:none}
+}
+
+/* iOS zooms in on any field under 16px, which throws the layout out */
+@media(max-width:900px){
+  input,select,textarea{font-size:16px}
+  .toolbar select,.toolbar input,.items input,.items textarea{font-size:15px}
+}
+
+@media(max-width:560px){
+  .top h2{font-size:16.5px}
+  .kpis{grid-template-columns:1fr 1fr}
+  .kpi .val{font-size:21px}
+  .legend{flex-wrap:wrap;gap:8px;font-size:11px}
+  .col{width:88vw}
+  .preview-page .sheet{--sheet-scale:.36}
+  .dupe{gap:6px;font-size:12px}
+}
 </style>
 </head>
 <body>
@@ -732,11 +853,12 @@ select option, select optgroup{ background:var(--opt-bg); color:var(--opt-text);
 
   <div class="main">
     <header class="top">
-      <button class="burger" onclick="document.getElementById('rail').classList.toggle('open')">☰</button>
+      <button class="burger" id="burger" aria-label="Menu">☰</button>
       <div>
         <h2 id="view-title">Dashboard</h2>
       </div>
       <div class="spacer"></div>
+      <span id="netpill" class="netpill" title="Connection status"></span>
       <select id="ws-switch" class="hidden" title="View the CRM as a department sees it" aria-label="Workspace"></select>
       <button class="btn icon" id="theme-btn" title="Switch theme" aria-label="Switch colour theme">☾</button>
       <div class="search">
@@ -749,6 +871,7 @@ select option, select optgroup{ background:var(--opt-bg); color:var(--opt-text);
   </div>
 </div>
 
+<div class="rail-scrim" id="rail-scrim"></div>
 <div id="modal-root"></div>
 
 <script type="module">
@@ -764,8 +887,10 @@ import {
   createUserWithEmailAndPassword, sendPasswordResetEmail
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import {
-  getFirestore, collection, doc, getDoc, setDoc, addDoc, updateDoc, deleteDoc,
-  onSnapshot, query, where, serverTimestamp, writeBatch, runTransaction
+  initializeFirestore, persistentLocalCache, persistentMultipleTabManager,
+  collection, doc, getDoc, setDoc, addDoc, updateDoc, deleteDoc,
+  onSnapshot, query, where, serverTimestamp, writeBatch, runTransaction,
+  onSnapshotsInSync
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 /* ------------------------------------------------------------------ */
@@ -782,7 +907,19 @@ const firebaseConfig = {
 
 const app  = initializeApp(firebaseConfig);
 const auth = getAuth(app);
-const db   = getFirestore(app);
+
+/* Everything is kept in the browser's own database, so the app works with no
+   signal and anything typed offline is sent the moment a connection returns.
+   The multi-tab manager stops two open tabs fighting over the cache. */
+let db;
+try{
+  db = initializeFirestore(app, {
+    localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
+  });
+}catch(e){
+  console.warn("offline storage unavailable, using memory only", e);
+  db = initializeFirestore(app, {});
+}
 
 /* ------------------------------------------------------------------ */
 /* 2. ROLES                                                            */
@@ -1082,6 +1219,70 @@ function toast(msg,bad){
   setTimeout(()=>t.remove(), 2600);
 }
 /* ------------------------------------------------------------------ */
+/* 4a. OFFLINE SHELL                                                   */
+/*    Keeps a copy of the app so it opens with no signal, and installs */
+/*    to the home screen. Skipped when opened from a file:// path.     */
+/* ------------------------------------------------------------------ */
+if ("serviceWorker" in navigator && location.protocol.startsWith("http")){
+  window.addEventListener("load", ()=>{
+    navigator.serviceWorker.register("./sw.js").then(reg=>{
+      reg.addEventListener("updatefound", ()=>{
+        const fresh = reg.installing;
+        if (!fresh) return;
+        fresh.addEventListener("statechange", ()=>{
+          if (fresh.state === "installed" && navigator.serviceWorker.controller){
+            toast("A new version is ready — reload when convenient");
+          }
+        });
+      });
+    }).catch(e=> console.warn("offline shell unavailable", e));
+  });
+}
+
+/* ------------------------------------------------------------------ */
+/* 4b. CONNECTION                                                      */
+/*    Firestore queues writes made offline and sends them itself. All  */
+/*    this does is make that visible, so nobody wonders whether their  */
+/*    work was saved.                                                  */
+/* ------------------------------------------------------------------ */
+const net = { online: navigator.onLine !== false, pending: 0 };
+function paintNet(){
+  const pill = $("#netpill");
+  if (!pill) return;
+  pill.className = "netpill";
+  if (!net.online){
+    pill.classList.add("off");
+    pill.textContent = net.pending
+      ? `Offline · ${net.pending} to send` : "Offline · saved on this device";
+    pill.title = "Your work is stored here and will upload when you reconnect.";
+  } else if (net.pending){
+    pill.classList.add("sync");
+    pill.textContent = `Sending ${net.pending}…`;
+    pill.title = "Uploading the changes you made offline.";
+  }
+}
+function bumpPending(n){ net.pending = Math.max(0, net.pending + n); paintNet(); }
+
+window.addEventListener("online", ()=>{
+  net.online = true; paintNet();
+  if (state.profile) render();          // clears the offline notices in place
+  if (net.pending) toast(`Back online — sending ${net.pending} change${net.pending===1?"":"s"}`);
+});
+window.addEventListener("offline", ()=>{
+  net.online = false; paintNet();
+  if (state.profile) render();
+  toast("Offline — your work is saved here and will upload later");
+});
+paintNet();
+
+/* Wraps a write so the pill counts it until the server confirms it. */
+async function tracked(promise){
+  bumpPending(1);
+  try{ return await promise; }
+  finally{ bumpPending(-1); }
+}
+
+/* ------------------------------------------------------------------ */
 /* 5. AUTH                                                             */
 /* ------------------------------------------------------------------ */
 /* ---- workspace picker on the sign-in card ----
@@ -1120,12 +1321,16 @@ $("#g-go").onclick = async ()=>{
   try{
     await signInWithEmailAndPassword(auth, email, pass);
   }catch(e){
-    err.textContent = ({
+    err.textContent = (!navigator.onLine
+      ? "You're offline. Signing in for the first time on this device needs a connection — "
+        + "once you're signed in, the app keeps working without one."
+      : null) || ({
       "auth/invalid-credential":"That email and password don't match an account.",
       "auth/user-not-found":"No account uses that email.",
       "auth/wrong-password":"That password is incorrect.",
       "auth/too-many-requests":"Too many attempts. Wait a few minutes and try again.",
-      "auth/invalid-email":"That email address isn't valid."
+      "auth/invalid-email":"That email address isn't valid.",
+      "auth/network-request-failed":"No connection. Try again when you have signal."
     })[e.code] || e.message;
     err.classList.remove("hidden");
   }
@@ -1385,7 +1590,7 @@ function renderNav(){
   $("#nav").innerHTML = html;
   $("#nav").querySelectorAll("[data-go]").forEach(b=> b.onclick = ()=>{
     setRoute(b.dataset.go);
-    document.getElementById("rail").classList.remove("open");
+    closeMenu();
   });
 }
 
@@ -1398,6 +1603,20 @@ function allowedRoutes(){
     ["quotations","pipeline","accounts","contacts","leads"].forEach(id=> out.add(id));
   return out;
 }
+/* The slide-out menu on small screens. */
+function openMenu(){
+  $("#rail").classList.add("open");
+  $("#rail-scrim").classList.add("on");
+}
+function closeMenu(){
+  $("#rail").classList.remove("open");
+  $("#rail-scrim").classList.remove("on");
+}
+$("#burger").onclick = ()=>
+  $("#rail").classList.contains("open") ? closeMenu() : openMenu();
+$("#rail-scrim").onclick = closeMenu;
+document.addEventListener("keydown", e=>{ if (e.key === "Escape") closeMenu(); });
+
 function setRoute(r){
   if (state.profile && !allowedRoutes().has(r)) r = "dashboard";
   state.route = r; state.search = ""; $("#q").value = "";
@@ -1541,10 +1760,16 @@ function readOnlyNote(d){
     : `Read-only — this belongs to ${who}.`;
 }
 function statusSelect(col, d, opts){
-  const now = col === "quotations" ? quoteStatus(d) : (d.status || "");
+  const now = col === "quotations" ? quoteStatus(d)
+            : col === "deals" ? (d.stage || "")
+            : (d.status || "");
   if (!canEditRecord(d)) return pillFor("status", now);
   const tone = ({ "Draft":"", "Sent":"info", "Viewed":"warn", "Approved":"accent",
-                  "Declined":"alert", "Expired":"alert" })[now] ?? "";
+                  "Declined":"alert", "Expired":"alert",
+                  "New":"info", "Contacted":"info", "Qualified":"accent",
+                  "Proposal Sent":"warn", "Negotiation":"warn",
+                  "Won":"accent", "Lost":"alert", "Converted":"accent",
+                  "Open":"warn", "Done":"info" })[now] ?? "";
   return `<select class="inline-sel ${tone}" data-setstatus="${col}:${d.id}"
     title="Change status">${opts.map(o=>opt(o, now)).join("")}</select>`;
 }
@@ -1753,6 +1978,8 @@ function viewList(col){
     <div style="flex:1"></div>
     <button class="btn" data-import="${col}" title="Paste from Excel or upload a CSV">Import</button>
     ${col==="quotations" ? seriesBadge() : ""}
+    ${col==="quotations" && !net.online
+      ? `<span class="pill warn" title="Existing quotations can still be edited offline">new quotes need a connection</span>`:""}
     <span class="eyebrow">${list.length} of ${rows(col).length}</span>
     ${col==="deals"||col==="leads"?`<span class="mono" style="font-size:12px;color:var(--muted)">${money(list.reduce((s,d)=>s+Number(d.value||d.estValue||0),0))}</span>`:""}
   </div>`;
@@ -1772,7 +1999,7 @@ function viewList(col){
       ${list.map(d=>`<tr>
         ${cols.map((c,i)=>`<td class="${["money","number"].includes(c.type)?"num":""}">${
           i===0 ? `<span class="lnk" data-open="${col}:${d.id}">${esc(titleOf(col,d))}</span>`
-          : (col==="quotations" && c.k==="status") ? statusSelect(col, d, c.opts)
+          : (["status","stage"].includes(c.k) && c.opts && canWrite(d)) ? statusSelect(col, d, c.opts)
           : cell(col,c,d)
         }</td>`).join("")}
         <td class="row-act">
@@ -3193,6 +3420,15 @@ function wireView(){
       const [col,id] = el.dataset.setstatus.split(":");
       const prev = el.dataset.was || "";
       try{
+        if (col === "deals"){
+          if (el.value === "Lost"){          // a lost deal still needs its reason
+            el.value = prev; render();
+            return openForm("deals", id, { stage:"Lost" });
+          }
+          await moveDeal(id, el.value);
+          el.dataset.was = el.value;
+          return;
+        }
         await updateDoc(doc(db,col,id), {
           status: el.value, statusChangedAt: serverTimestamp(), updatedAt: serverTimestamp()
         });
@@ -3298,11 +3534,11 @@ function wireView(){
 async function moveDeal(id, stage){
   const patch = { stage, probability: stageProb(stage), stageChangedAt: serverTimestamp(), updatedAt: serverTimestamp() };
   if (["Won","Lost"].includes(stage)) patch.closedAt = serverTimestamp();
-  try{ await updateDoc(doc(db,"deals",id), patch); toast(`Moved to ${stage}`); }
+  try{ await tracked(updateDoc(doc(db,"deals",id), patch)); toast(`Moved to ${stage}`); }
   catch(e){ toast(e.message,true); }
 }
 async function markDone(id){
-  try{ await updateDoc(doc(db,"activities",id), { status:"Done", completedAt: serverTimestamp(), updatedAt: serverTimestamp() }); toast("Marked done"); }
+  try{ await tracked(updateDoc(doc(db,"activities",id), { status:"Done", completedAt: serverTimestamp(), updatedAt: serverTimestamp() })); toast("Marked done"); }
   catch(e){ toast(e.message,true); }
 }
 /* Rebuild a series from the quotations that actually exist. */
@@ -3507,8 +3743,8 @@ async function submitForm(col,id){
   }
   $("#save").disabled = true;
   try{
-    if (id) await updateDoc(doc(db,col,id), payload);
-    else    await addDoc(collection(db,col), payload);
+    if (id) await tracked(updateDoc(doc(db,col,id), payload));
+    else    await tracked(addDoc(collection(db,col), payload));
     closeModal(); toast(S.label + (id?" saved":" created"));
   }catch(e){
     $("#save").disabled = false;
@@ -3723,7 +3959,7 @@ async function deleteRecord(col, id, opts = {}){
     const batch = writeBatch(db);
     batch.delete(doc(db, col, id));
     deps.forEach(d=> d.hits.forEach(h=> batch.delete(doc(db, d.col, h.id))));
-    await batch.commit();
+    await tracked(batch.commit());
 
     // a deleted quotation gives its number back, so the series stays unbroken.
     // Highest first, so winding the counter back works one step at a time.
@@ -3936,6 +4172,22 @@ function openQuoteForm(id, preset){
   if (id){
     const existing = state.data.quotations.get(id);
     if (existing && !canWrite(existing)) return toast(readOnlyNote(existing), true);
+  }
+  // A quote number is issued by the server so two people can never be handed
+  // the same one. That check is the one thing here that needs a connection.
+  if (!id && !net.online){
+    return modal(`
+      <div class="modal-h"><h3>Quotation numbers need a connection</h3>
+        <button class="x" data-close aria-label="Close">×</button></div>
+      <div class="modal-b">
+        <p style="margin-top:0">Every quotation takes its number from the server, so that two
+          people can never be given the same one. That check can't be made offline.</p>
+        <p style="color:var(--muted);font-size:13px">Everything else works as normal while you're
+          offline — leads, opportunities, customers, contacts, activities and edits to existing
+          quotations are all saved on this device and uploaded when you reconnect.</p>
+      </div>
+      <div class="modal-f"><div class="spacer"></div>
+        <button class="btn pri" data-close>Understood</button></div>`);
   }
   const q = id ? { ...state.data.quotations.get(id) } : { ...(preset || {}) };
   let items = Array.isArray(q.items) && q.items.length ? [...q.items] : [{desc:"",qty:1,price:""}];
