@@ -1040,7 +1040,7 @@ const SCHEMAS = {
     fields:[
       { k:"title",             l:"Deal name",    type:"text",   req:true, table:true },
       { k:"accountId",         l:"Account",      type:"ref",    refTo:"accounts", table:true },
-      { k:"contactId",         l:"Contact",      type:"ref",    refTo:"contacts" },
+      { k:"contactId",         l:"Contact",      type:"ref",    refTo:"contacts", dependsOn:"accountId" },
       { k:"value",             l:"Deal value",   type:"money",  req:true, table:true },
       { k:"stage",             l:"Stage",        type:"select", opts:STAGES.map(s=>s.key), def:"New", table:true },
       { k:"expectedCloseDate", l:"Expected close", type:"date", table:true },
@@ -3741,11 +3741,15 @@ function fieldHTML(col,f,d){
     } else if (f.refTo === "dynamic"){
       input = `<select id="${id}" data-k="${f.k}" data-dynamic="1">${dynamicOptions(d?.relatedType || "Lead", v)}</select>`;
     } else {
+      // a dependent list starts narrowed to whatever the parent field holds
+      const parentVal = f.dependsOn ? (d?.[f.dependsOn] ?? "") : null;
       const list = rows(f.refTo).filter(r=>r && r.id)
+        .filter(r=> !f.dependsOn || !parentVal || r[f.dependsOn] === parentVal)
         .sort((a,b)=>titleOf(f.refTo,a).localeCompare(titleOf(f.refTo,b)));
       const stale = v && !list.some(r=>r.id===v);   // the record it pointed at is gone
-      input = `<select id="${id}" data-k="${f.k}"><option value="">—</option>
-        ${stale?`<option value="" selected>— deleted record, choose again —</option>`:""}
+      input = `<select id="${id}" data-k="${f.k}"${f.dependsOn?` data-dependson="${f.dependsOn}" data-refto="${f.refTo}"`:""}>
+        <option value="">—</option>
+        ${stale && !f.dependsOn?`<option value="" selected>— deleted record, choose again —</option>`:""}
         ${list.map(r=>`<option value="${r.id}"${r.id===v?" selected":""}>${esc(titleOf(f.refTo,r))}</option>`).join("")}</select>`;
     }
   }
@@ -3784,6 +3788,24 @@ function openForm(col, id, preset){
       <button class="btn" data-close>Cancel</button>
       <button class="btn pri" id="save">${id?"Save changes":"Create "+esc(S.label.toLowerCase())}</button>
     </div>`);
+
+  // keep dependent lists in step: choose a customer, and the contact list
+  // narrows to that customer's people
+  document.querySelectorAll("[data-dependson]").forEach(sel=>{
+    const parent = document.querySelector(`[data-k="${sel.dataset.dependson}"]`);
+    if (!parent) return;
+    const rebuild = ()=>{
+      const want = parent.value;
+      const list = rows(sel.dataset.refto)
+        .filter(r=> !want || r[sel.dataset.dependson] === want)
+        .sort((a,b)=>titleOf(sel.dataset.refto,a).localeCompare(titleOf(sel.dataset.refto,b)));
+      const keep = sel.value;
+      sel.innerHTML = `<option value="">—</option>` + list.map(r=>
+        `<option value="${r.id}"${r.id===keep?" selected":""}>${esc(titleOf(sel.dataset.refto,r))}</option>`).join("");
+      if (!list.some(r=>r.id===keep)) sel.value = "";
+    };
+    parent.addEventListener("change", rebuild);
+  });
 
   const relType = document.querySelector('[data-k="relatedType"]');
   if (relType) relType.onchange = ()=>{
@@ -4314,8 +4336,8 @@ function openQuoteForm(id, preset){
               ? `<option value="" selected>— deleted customer, choose again —</option>`:""}
             ${accts.map(a=>`<option value="${a.id}"${a.id===q.accountId?" selected":""}>${esc(a.name)}</option>`).join("")}</select></div>
         <div class="field"><label for="q-contact">Attention to</label>
-          <select id="q-contact"><option value="">—</option>
-            ${cts.map(c=>`<option value="${c.id}"${c.id===q.contactId?" selected":""}>${esc(titleOf("contacts",c))}</option>`).join("")}</select></div>
+          <select id="q-contact"></select>
+          <span class="hint" id="q-contact-hint"></span></div>
         <div class="field"><label for="q-deal">Linked opportunity</label>
           <select id="q-deal">
             <option value="">— None —</option>
@@ -4428,6 +4450,37 @@ function openQuoteForm(id, preset){
         + (free.length>1?` ${free.length-1} more to reuse after this.`:"")
       : `${esc(dept)} series. Confirmed when you save — if a colleague saves first, you'll get the next one.`;
   }
+  /* Only the people at the chosen company, so nobody addresses a quotation
+     to a contact at a different customer. */
+  function contactsFor(accountId){
+    return rows("contacts")
+      .filter(c=> accountId ? c.accountId === accountId : true)
+      .sort((a,b)=> titleOf("contacts",a).localeCompare(titleOf("contacts",b)));
+  }
+  function refreshContacts(keep){
+    const acct = $("#q-acct").value;
+    const list = contactsFor(acct);
+    const sel  = $("#q-contact");
+    const want = keep !== undefined ? keep : sel.value;
+    const stillThere = list.some(c=>c.id === want);
+    sel.innerHTML = `<option value="">—</option>` +
+      list.map(c=>`<option value="${c.id}"${c.id===want && stillThere?" selected":""}>
+        ${esc(titleOf("contacts",c))}${c.jobTitle?` — ${esc(c.jobTitle)}`:""}</option>`).join("");
+    const hint = $("#q-contact-hint");
+    if (!acct) hint.textContent = "Choose a customer first to see their contacts.";
+    else if (!list.length)
+      hint.innerHTML = `No contacts recorded for this customer yet — <span class="lnkish" id="q-newcontact">add one</span>.`;
+    else hint.textContent = `${list.length} contact${list.length===1?"":"s"} at this customer.`;
+    const add = document.querySelector("#q-newcontact");
+    if (add) add.onclick = ()=>{
+      const draft = draftFromForm();
+      closeModal();
+      openForm("contacts", null, { accountId: acct });
+      toast("Add the contact, then reopen your quotation");
+    };
+  }
+  $("#q-acct").addEventListener("change", ()=> refreshContacts());
+
   function dealHint(){
     const v = $("#q-deal").value;
     const h = $("#q-deal-hint");
@@ -4438,6 +4491,7 @@ function openQuoteForm(id, preset){
   $("#q-deal").onchange = dealHint;
   dealHint();
 
+  refreshContacts(q.contactId);
   $("#q-issue").onchange = refreshNumber;
   const ownerSel = document.querySelector("#q-owner");
   if (ownerSel) ownerSel.onchange = refreshNumber;
