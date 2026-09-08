@@ -514,6 +514,11 @@ table.previewtbl tr.rowbad td{background:var(--alert-weak)}
   box-shadow:0 26px 64px rgba(8,24,43,.32);margin:auto;
 }
 .modal.wide{max-width:860px}
+.modal.nudge{animation:nudge .3s cubic-bezier(.36,.07,.19,.97)}
+@keyframes nudge{
+  10%,90%{transform:translateX(-1.5px)} 20%,80%{transform:translateX(3px)}
+  30%,50%,70%{transform:translateX(-5px)} 40%,60%{transform:translateX(5px)}
+}
 .modal-h{padding:16px 20px;border-bottom:1px solid var(--hair-2);display:flex;align-items:center;gap:10px}
 .modal-h h3{font-family:var(--display);font-size:19px;font-weight:600;margin:0;letter-spacing:.005em}
 .modal-h .x{margin-left:auto;background:none;border:0;font-size:20px;color:var(--faint);cursor:pointer;line-height:1}
@@ -3690,17 +3695,39 @@ async function saveSettings(){
 /* ------------------------------------------------------------------ */
 /* 17. MODAL PLUMBING                                                  */
 /* ------------------------------------------------------------------ */
+/* A card never closes because you clicked past its edge — too easy to lose a
+   half-typed quotation that way. Closing is deliberate: the ×, Cancel, or
+   Escape, and if anything has been typed, Escape asks first. */
+let modalDirty = false;
 function modal(html, wide){
   const root = $("#modal-root");
   root.innerHTML = `<div class="scrim"><div class="modal${wide?" wide":""}">${html}</div></div>`;
   const scrim = root.querySelector(".scrim");
-  scrim.onclick = e=>{ if(e.target===scrim) closeModal(); };
-  root.querySelectorAll("[data-close]").forEach(b=> b.onclick = closeModal);
+  const card  = root.querySelector(".modal");
+  modalDirty = false;
+
+  // anything typed or chosen counts as work worth protecting
+  card.addEventListener("input",  ()=> modalDirty = true);
+  card.addEventListener("change", ()=> modalDirty = true);
+
+  scrim.onclick = e=>{
+    if (e.target !== scrim) return;
+    card.classList.remove("nudge");
+    void card.offsetWidth;              // restart the animation
+    card.classList.add("nudge");        // acknowledge the click, stay open
+  };
+  root.querySelectorAll("[data-close]").forEach(b=> b.onclick = ()=> closeModal());
   document.addEventListener("keydown", escClose);
   return root;
 }
-function closeModal(){ $("#modal-root").innerHTML = ""; document.removeEventListener("keydown", escClose); }
-function escClose(e){ if(e.key==="Escape") closeModal(); }
+function closeModal(force){
+  if (!force && modalDirty
+      && !confirm("Close without saving?\n\nAnything you've typed here will be lost.")) return;
+  modalDirty = false;
+  $("#modal-root").innerHTML = "";
+  document.removeEventListener("keydown", escClose);
+}
+function escClose(e){ if (e.key === "Escape") closeModal(); }
 
 function fieldHTML(col,f,d){
   if (f.type === "computed") return "";
@@ -3818,7 +3845,7 @@ function openForm(col, id, preset){
   $("#save").onclick = ()=> submitForm(col,id);
   const del = document.querySelector("#del");
   if (del) del.onclick = async ()=>{
-    if (await deleteRecord(col, id)) closeModal();
+    if (await deleteRecord(col, id)) closeModal(true);
   };
 }
 
@@ -3864,7 +3891,7 @@ async function submitForm(col,id){
   try{
     if (id) await tracked(updateDoc(doc(db,col,id), payload));
     else    await tracked(addDoc(collection(db,col), payload));
-    closeModal(); toast(S.label + (id?" saved":" created"));
+    closeModal(true); toast(S.label + (id?" saved":" created"));
   }catch(e){
     $("#save").disabled = false;
     const box = $("#form-err"); box.textContent = e.message; box.classList.remove("hidden");
@@ -3921,20 +3948,20 @@ function openDetail(col,id){
     </div>`, true);
 
   const em = document.querySelector("#editme");
-  if (em) em.onclick = ()=>{ closeModal(); openForm(col,id); };
-  const c = document.querySelector("#conv"); if(c) c.onclick = ()=>{ closeModal(); openConvert(id); };
+  if (em) em.onclick = ()=>{ closeModal(true); openForm(col,id); };
+  const c = document.querySelector("#conv"); if(c) c.onclick = ()=>{ closeModal(true); openConvert(id); };
   $("#log-act").onclick = ()=>{
-    closeModal();
+    closeModal(true);
     openForm("activities", null, { relatedType:S.label, relatedId:id, dueDate:todayISO() });
   };
   const nq = document.querySelector("#new-quote-here");
   if (nq) nq.onclick = ()=>{
-    closeModal();
+    closeModal(true);
     openQuoteForm(null, { dealId:id, accountId:d.accountId, contactId:d.contactId,
                           title:d.title, ownerId:d.ownerId });
   };
   document.querySelectorAll("[data-quickdone]").forEach(b=> b.onclick = async ()=>{
-    await markDone(b.dataset.quickdone); closeModal();
+    await markDone(b.dataset.quickdone); closeModal(true);
   });
 }
 
@@ -4005,7 +4032,7 @@ function openConvert(leadId){
         sourcedBy: l.createdBy || myUid(), leadId: leadId, stageChangedAt: serverTimestamp()
       });
       await updateDoc(doc(db,"leads",leadId), { status:"Converted", convertedAt:serverTimestamp(), updatedAt:serverTimestamp() });
-      closeModal(); toast("Lead converted"); setRoute("pipeline");
+      closeModal(true); toast("Lead converted"); setRoute("pipeline");
     }catch(e){
       $("#do-conv").disabled = false;
       const b=$("#form-err"); b.textContent=e.message; b.classList.remove("hidden");
@@ -4473,10 +4500,11 @@ function openQuoteForm(id, preset){
     else hint.textContent = `${list.length} contact${list.length===1?"":"s"} at this customer.`;
     const add = document.querySelector("#q-newcontact");
     if (add) add.onclick = ()=>{
-      const draft = draftFromForm();
-      closeModal();
+      if (modalDirty && !confirm(
+        "Add a contact now?\n\nThis quotation will close and what you've typed will be lost. "
+        + "You may prefer to finish it first and add the contact afterwards.")) return;
+      closeModal(true);
       openForm("contacts", null, { accountId: acct });
-      toast("Add the contact, then reopen your quotation");
     };
   }
   $("#q-acct").addEventListener("change", ()=> refreshContacts());
@@ -4528,7 +4556,7 @@ function openQuoteForm(id, preset){
         + `Cancel — delete it but retire the number, leaving a gap in the series.\n\n`
         + `Only reuse it if this quotation never actually reached the customer.`);
     }
-    if (await deleteRecord("quotations", id, { force, aftermath:plan })) closeModal();
+    if (await deleteRecord("quotations", id, { force, aftermath:plan })) closeModal(true);
   };
 
   $("#q-save").onclick = async ()=>{
@@ -4560,7 +4588,7 @@ function openQuoteForm(id, preset){
         const before = state.data.quotations.get(id)?.status;
         if (payload.dealId === "__new__") payload.dealId = null;
         await updateDoc(doc(db,"quotations",id), payload);   // number is never rewritten
-        closeModal(); toast("Quotation saved");
+        closeModal(true); toast("Quotation saved");
         if (payload.status !== before)
           await syncDealFromQuote({ ...payload, id, total:t.total }, payload.status);
       } else {
@@ -4603,7 +4631,7 @@ function openQuoteForm(id, preset){
           });
           return { quoteNo, dealId, madeDeal:makeDeal, quoteId:qref.id };
         });
-        closeModal();
+        closeModal(true);
         toast("Quotation " + result.quoteNo + " created"
               + (result.madeDeal ? " with a new opportunity" : ""));
         if (!result.madeDeal && result.dealId)
@@ -4667,7 +4695,7 @@ function openQuoteDetail(id){
       <button class="btn" data-close>Close</button>
       <button class="btn pri" id="q-edit">Edit</button>
     </div>`, true);
-  $("#q-edit").onclick = ()=>{ closeModal(); openQuoteForm(id); };
+  $("#q-edit").onclick = ()=>{ closeModal(true); openQuoteForm(id); };
   $("#q-view").onclick = ()=> openQuotePreview(q);
   $("#q-print").onclick = ()=> printQuote(id);
 }
@@ -5209,7 +5237,7 @@ function openImport(col){
         done += chunk.length;
         btn.textContent = `Importing… ${done}/${good.length}`;
       }
-      closeModal();
+      closeModal(true);
       toast(`Imported ${done} ${done===1?SCHEMAS[col].label.toLowerCase():SCHEMAS[col].plural.toLowerCase()}`
             + (madeRefs.size ? ` and created ${madeRefs.size} linked record${madeRefs.size===1?"":"s"}` : ""));
     }catch(e){
@@ -5290,7 +5318,7 @@ function openUserForm(uid){
         await setDoc(doc(db,"users",cred.user.uid), { ...profile, createdAt: serverTimestamp() });
         await signOut(secondAuth);
       }
-      closeModal(); toast(uid?"Person updated":"Account created");
+      closeModal(true); toast(uid?"Person updated":"Account created");
     }catch(e){
       $("#u-save").disabled = false;
       box.textContent = ({
